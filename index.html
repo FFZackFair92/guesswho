@@ -201,6 +201,10 @@
     <button id="btnBot" class="sec">Gioca contro il Bot</button>
   </div>
 
+  <div class="card" style="text-align:center; padding:12px">
+    <button id="btnHowTo" class="sec" style="margin:0">📖 Come si gioca</button>
+  </div>
+
   <div class="card" id="serverCard">
     <h2>⚙️ Server</h2>
     <div class="row">
@@ -210,6 +214,74 @@
     <p class="status" id="serverStatus" style="margin:6px 0 0">Necessario per random e lobby. Vedi server/README.</p>
   </div>
   <p class="status" id="homeStatus"></p>
+</div>
+
+<!-- ============ COME SI GIOCA ============ -->
+<div class="screen" id="scr-howto">
+  <h1>📖 Come si gioca</h1>
+  <p class="sub">Il classico Indovina Chi, in 3D e online</p>
+
+  <div class="card">
+    <h2>🎯 Obiettivo</h2>
+    <p style="font-size:.95rem; line-height:1.55">
+      Tu e il tuo avversario avete la stessa board di personaggi. Ognuno riceve un
+      <b>personaggio segreto</b> (lo vedi in alto a sinistra): è quello che <b>l'avversario</b> deve
+      indovinare. Vince chi scopre per primo il personaggio dell'altro.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>🗣️ Le domande</h2>
+    <p style="font-size:.95rem; line-height:1.55">
+      Nelle partite online fatevi le domande <b>a voce o in chat</b> (es. "È una donna?", "Porta gli
+      occhiali?"), rispondendo solo SÌ o NO. In base alle risposte, <b>tocca le tessere</b> sulla tua
+      board rossa per abbatterle ed eliminare i candidati. Sbagli? "↩️ Rialza tutti" o ritocca la
+      singola tessera. Di fronte vedi la board blu dell'avversario: le sue tessere si abbassano in
+      tempo reale, così capisci quanto è vicino alla soluzione. Contro il Bot le domande si fanno
+      coi pulsanti e c'è un timer di 60 secondi per abbattere le tessere prima di passare il turno.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>🎯 L'indovinata finale</h2>
+    <p style="font-size:.95rem; line-height:1.55">
+      Quando pensi di sapere chi è, premi <b>"🎯 Indovina!"</b> e tocca il personaggio. Attenzione:
+      se sbagli, <b>perdi subito</b> la partita. Puoi tentare in qualsiasi momento.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>🏟️ Lobby e punteggio</h2>
+    <p style="font-size:.95rem; line-height:1.55">
+      Nelle lobby (fino a 10 giocatori) il server ti propone sfide 1v1 casuali: hai <b>20 secondi</b>
+      per accettare o rifiutare. Ogni vittoria vale <b>100 punti meno 3 per ogni tessera che avevi
+      abbattuto</b> (minimo 10): indovinare con poche informazioni vale di più! La classifica è
+      visibile a tutti nella lobby.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>🖼️ Le board</h2>
+    <p style="font-size:.95rem; line-height:1.55">
+      Puoi giocare con le categorie pronte (Famosi, Calciatori, Cantanti, Attori, Storici, Anime),
+      cercarne una qualsiasi col <b>motore di ricerca</b> (es. "tennisti", "rapper"...) o caricare le
+      <b>tue foto</b> (min 8, max 24) — perfette per giocare con amici e parenti. Nelle partite
+      random la categoria è a sorpresa.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>💡 Consigli</h2>
+    <p style="font-size:.95rem; line-height:1.55">
+      Trascina per ruotare la visuale 3D. Fai domande che dividono la board a metà: eliminano
+      sempre il numero massimo di candidati. E se l'avversario ha quasi finito le tessere… rischia
+      l'indovinata!
+    </p>
+  </div>
+
+  <div class="card" style="padding:12px">
+    <button id="btnHowToBack" class="warn" style="margin:0">← Torna alla home</button>
+  </div>
 </div>
 
 <!-- ============ SETUP amichevole/bot (host) ============ -->
@@ -1689,6 +1761,8 @@ $('leaveBtn').onclick=()=>{
 };
 $('homeBtn').onclick=()=>location.reload();
 $('btnBot').onclick=startBotSetup;
+$('btnHowTo').onclick=()=>show('scr-howto');
+$('btnHowToBack').onclick=()=>show('scr-home');
 $('skipBtn').onclick=endFlipTimer;
 $('accYes').onclick=()=>respondAccept(true);
 $('accNo').onclick=()=>respondAccept(false);
