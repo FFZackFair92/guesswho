@@ -109,6 +109,16 @@ const server = http.createServer((req, res) => {
           const html = clientHtml();
           if (html) { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(html); }
         }
+        // asset 3D (es. /assets/cat.glb)
+        if (req.method === 'GET' && parts[0] === 'assets' && parts.length === 2 && /^[\w.-]+\.glb$/.test(parts[1])) {
+          for (const dir of [path.join(__dirname, 'assets'), path.join(__dirname, '..', 'assets')]) {
+            try {
+              const data = fs.readFileSync(path.join(dir, parts[1]));
+              res.writeHead(200, { 'Content-Type': 'model/gltf-binary', 'Cache-Control': 'public, max-age=86400', 'Access-Control-Allow-Origin': '*' });
+              return res.end(data);
+            } catch (e) { }
+          }
+        }
         return send(404, { error: 'not found' });
       }
 

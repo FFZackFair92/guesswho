@@ -6,6 +6,8 @@
 <title>Indovina Chi 3D</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
 <style>
@@ -1335,6 +1337,76 @@ function makeBoard(imgs,cols,rows,theme){
   }
   return {group:g, tiles:arr, W, D};
 }
+/* ---------- mascotte: gatto Quaternius (CC0) con fallback omino ---------- */
+let catGLTF=null, catReady=null;
+function loadCatAsset(){
+  if(catReady)return catReady;
+  catReady=(async()=>{
+    if(!window.THREE||!THREE.GLTFLoader)return;
+    const urls=[];
+    if(AUTO_SERVER)urls.push('/assets/cat.glb');
+    urls.push('https://static.poly.pizza/625862f9-590e-4fbd-88bc-9056047885dd.glb');
+    for(const u of urls){
+      try{
+        catGLTF=await new Promise((res,rej)=>new THREE.GLTFLoader().load(u,res,undefined,rej));
+        return;
+      }catch(e){}
+    }
+  })();
+  return catReady;
+}
+function makeMascot(mainHex){
+  if(catGLTF&&THREE.SkeletonUtils){
+    const inner=THREE.SkeletonUtils.clone(catGLTF.scene);
+    const bb=new THREE.Box3().setFromObject(inner);
+    const size=bb.getSize(new THREE.Vector3());
+    const s=1.55/Math.max(size.y,.001);
+    inner.scale.setScalar(s);
+    inner.position.y=-bb.min.y*s;
+    inner.traverse(o=>{
+      if(o.isMesh){
+        o.castShadow=true;
+        if(o.material){o.material=o.material.clone();o.material.color.lerp(new THREE.Color(mainHex),.28);}
+      }
+    });
+    const grp=new THREE.Group();grp.add(inner);
+    const mixer=new THREE.AnimationMixer(inner);
+    const clips={};
+    catGLTF.animations.forEach(c=>{clips[c.name.split('|').pop()]=c;});
+    const idle=mixer.clipAction(clips.Idle||catGLTF.animations[0]);
+    idle.play();
+    const specials=['Yes','No','Jump','Dance'].filter(k=>clips[k]);
+    let nextAt=performance.now()/1000+2+Math.random()*4, special=null, backAt=0;
+    function update(dt,now){
+      mixer.update(dt);
+      if(!special&&now>nextAt&&specials.length){
+        const k=specials[Math.floor(Math.random()*specials.length)];
+        special=mixer.clipAction(clips[k]);
+        special.reset();special.setLoop(THREE.LoopOnce,1);
+        special.crossFadeFrom(idle,.25,false);special.play();
+        backAt=now+Math.max(.6,(clips[k].duration||1.4)-.25);
+        nextAt=now+5+Math.random()*5;
+      }
+      if(special&&now>backAt){
+        idle.reset();idle.crossFadeFrom(special,.25,false);idle.play();
+        special=null;
+      }
+    }
+    return {group:grp, update, t0:Math.random()*7};
+  }
+  // fallback: omino
+  const guy=makeGuy(mainHex);
+  function update(dt,now,excited){
+    const tt=now+guy.t0;
+    const wave=excited!==undefined?excited:(Math.floor(tt/5)%2===1);
+    const rT= wave ? 2.45+Math.sin(tt*9)*.35 : .14+Math.sin(tt*2)*.08;
+    const lT= wave ? -.1+Math.sin(tt*2.3)*.06 : -.14-Math.sin(tt*2+1)*.08;
+    guy.rArm.rotation.z+=(rT-guy.rArm.rotation.z)*.12;
+    guy.lArm.rotation.z+=(lT-guy.lArm.rotation.z)*.12;
+    guy.head.rotation.z+=(Math.sin(tt*1.7)*.07-guy.head.rotation.z)*.1;
+  }
+  return {group:guy.group, update, t0:guy.t0};
+}
 function makeGuy(mainHex){
   const g=new THREE.Group();
   const mat=new THREE.MeshStandardMaterial({color:pcol(mainHex), roughness:.5});
@@ -1393,14 +1465,14 @@ async function buildBoard3D(){
   boardGroup.add(mine.group, opp.group);
   tiles=mine.tiles; oppTiles=opp.tiles;
 
+  await loadCatAsset();
   guys=[];
-  const guyA=makeGuy(0xd7402b);
+  const guyA=makeMascot(0xd7402b);
   guyA.group.position.set(mine.W/2+1.4, .1, off+.4);
   guyA.group.rotation.y=-.7;
-  const guyB=makeGuy(0x2e86de);
+  const guyB=makeMascot(0x2e86de);
   guyB.group.position.set(-(mine.W/2+1.4), .1, -off-.4);
   guyB.group.rotation.y=Math.PI*.78;
-  guyA.baseY=guyA.group.position.y; guyB.baseY=guyB.group.position.y;
   boardGroup.add(guyA.group, guyB.group);
   guys.push(guyA, guyB);
 
@@ -1427,18 +1499,10 @@ function tick(){
     t.mesh.scale.x+=(target-t.mesh.scale.x)*.2;
     t.mesh.scale.y+=(target-t.mesh.scale.y)*.2;
   }
-  for(const gy of guys){
-    const t=now/1000+gy.t0;
-    const wave=Math.floor(t/5)%2===1;
-    const rT= wave ? 2.45+Math.sin(t*9)*.35 : .14+Math.sin(t*2)*.08;
-    const lT= wave ? -.1+Math.sin(t*2.3)*.06 : -.14-Math.sin(t*2+1)*.08;
-    const hT= wave ? Math.sin(t*9)*.09 : Math.sin(t*1.7)*.07;
-    gy.rArm.rotation.z+=(rT-gy.rArm.rotation.z)*.12;
-    gy.lArm.rotation.z+=(lT-gy.lArm.rotation.z)*.12;
-    gy.head.rotation.z+=(hT-gy.head.rotation.z)*.1;
-    const yT=gy.baseY+(wave?Math.abs(Math.sin(t*4.5))*.07:Math.sin(t*2)*.02);
-    gy.group.position.y+=(yT-gy.group.position.y)*.2;
-  }
+  const tSec=now/1000;
+  const dt=Math.min(.05,(now-(tick.last||now))/1000);
+  tick.last=now;
+  for(const gy of guys)gy.update(dt,tSec);
   camRig.yaw+=(camRig.tYaw-camRig.yaw)*.06;
   camRig.pitch+=(camRig.tPitch-camRig.pitch)*.06;
   camRig.dist+=(camRig.tDist-camRig.dist)*.05;
@@ -1633,9 +1697,12 @@ function initHomeAnim(){
   const lid=new THREE.Mesh(new THREE.BoxGeometry(3.18,.28,2.18),redMat);
   lid.position.set(0,.14,1.05);lidP.add(lid);
   HB.lidP=lidP;
-  // omini
-  HB.guys=[makeGuy(0xd7402b),makeGuy(0x2e86de)];
-  HB.guys.forEach(g=>{g.group.scale.setScalar(.85);sc.add(g.group);});
+  // mascotte (gatti, con fallback omini)
+  HB.guys=[];
+  loadCatAsset().then(()=>{
+    HB.guys=[makeMascot(0xd7402b),makeMascot(0x2e86de)];
+    HB.guys.forEach(g=>{g.group.scale.multiplyScalar(.85);g.group.visible=false;sc.add(g.group);});
+  });
   // carte
   HB.cards=[];
   ['Leo','Mia','Ugo','Zoe','Rex','Ada','Gil','Eva'].forEach(n=>{
@@ -1656,17 +1723,16 @@ function homeTick(){
   // coperchio: si ribalta all'INDIETRO fino quasi a sdraiarsi dietro la scatola
   const openA=E((t-.4)/1.1)*(1-E((t-9.2)/.9));
   HB.lidP.rotation.x=-2.85*openA;
-  // omini: saltano fuori ai lati
+  // mascotte: saltano fuori ai lati
+  const hdt=Math.min(.05, now-(HB.last||now));
+  HB.last=now;
   HB.guys.forEach((gy,i)=>{
     const s=i?-1:1;
     const amt=E((t-1.4-i*.25)/1)*(1-E((t-8.4-i*.15)/.8));
     gy.group.position.set(3.1*s*amt, .6*(1-amt)+Math.sin(amt*Math.PI)*1.7, 1.1*amt);
     gy.group.rotation.y=-.4*s;
     gy.group.visible=amt>0.02;
-    const tt=now+gy.t0;
-    gy.rArm.rotation.z+=(((amt>.9)?2.45+Math.sin(tt*9)*.35:.1)-gy.rArm.rotation.z)*.15;
-    gy.lArm.rotation.z+=((-.12-Math.sin(tt*2)*.06)-gy.lArm.rotation.z)*.15;
-    gy.head.rotation.z+=(Math.sin(tt*1.8)*.07-gy.head.rotation.z)*.1;
+    gy.update(hdt,now,amt>.9);
   });
   // carte: fontana ad arco sopra la scatola, poi fluttuano a ventaglio in alto
   const n=HB.cards.length;
