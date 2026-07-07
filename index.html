@@ -243,6 +243,7 @@
     <input type="text" id="lobbyNameInp" maxlength="24" placeholder="Nome della lobby">
     <label class="chk"><input type="checkbox" id="lobbyOpenChk" checked> Ingresso libero (visibile a tutti)</label>
     <button id="btnLobbyPics" class="sec">🖼️ Scegli le foto (min 8, max 24)</button>
+    <button id="btnLobbyRandom" class="sec">🎲 Foto random (per testare)</button>
     <input type="file" id="filePickL" accept="image/*" multiple style="display:none">
     <div id="lobbyPreview" class="preview"></div>
     <p class="status" id="lobbyCreateStatus"></p>
@@ -1460,6 +1461,18 @@ $('btnLobbyCreate').onclick=()=>{
   show('scr-lobbycreate');
 };
 $('btnLobbyPics').onclick=()=>$('filePickL').click();
+$('btnLobbyRandom').onclick=async()=>{
+  const key=randomCatKey();
+  $('lobbyCreateStatus').innerHTML=`<span class="spin">⏳</span> Scarico il pack ${CATS[key].label}…`;
+  $('btnLobbyRandom').disabled=true;
+  try{
+    customImgs=await loadCatBoard(key);
+    renderPreview(customImgs,$('lobbyPreview'));
+    $('lobbyCreateStatus').textContent=`Pack ${CATS[key].label} pronto (${customImgs.length} personaggi).`;
+    $('btnLobbyGo').disabled=false;
+  }catch(e){$('lobbyCreateStatus').textContent='Errore: '+e.message;}
+  $('btnLobbyRandom').disabled=false;
+};
 $('filePickL').onchange=async e=>{
   await pickCustom([...e.target.files],customImgs,$('lobbyPreview'),$('lobbyCreateStatus'));
   $('btnLobbyGo').disabled=customImgs.length<8;
