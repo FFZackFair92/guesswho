@@ -31,12 +31,23 @@ const rid = n => crypto.randomBytes(8).toString('base64url').replace(/[-_]/g,'A'
 const now = () => Date.now();
 const points = flips => Math.max(10, 100 - 3 * (Number(flips) || 0));
 
+const ACCEPT_MS = 22_000; // 20s di countdown + margine
+
+function cancelPending(lb, pid) {
+  const p = lb.players[pid];
+  if (!p || !p.pending) return;
+  const o = lb.players[p.pending.opp];
+  p.pending = null; p.status = 'idle'; p.cool = now() + 8_000;   // cooldown anti riaccoppiamento immediato
+  if (o && o.pending) { o.pending = null; o.status = 'idle'; o.cool = now() + 8_000; }
+}
+
 function sweep() {
   const t = now();
   for (const [id, lb] of lobbies) {
     for (const [pid, p] of Object.entries(lb.players)) {
-      if (t - p.last > STALE_MS) delete lb.players[pid];
-      else if (p.status === 'playing' && t - (p.matchStart || 0) > MATCH_TTL_MS) { p.status = 'idle'; p.match = null; }
+      if (t - p.last > STALE_MS) { cancelPending(lb, pid); delete lb.players[pid]; }
+      else if (p.status === 'playing' && t - (p.matchStart || 0) > MATCH_TTL_MS) { p.status = 'idle'; p.go = null; }
+      else if (p.pending && t - p.pending.t > ACCEPT_MS) cancelPending(lb, pid); // countdown scaduto
     }
     if (Object.keys(lb.players).length === 0 && t - lb.last > LOBBY_TTL_MS) lobbies.delete(id);
   }
@@ -44,14 +55,15 @@ function sweep() {
 }
 
 function pairInLobby(lb) {
-  const idle = Object.entries(lb.players).filter(([, p]) => p.status === 'idle' && !p.match);
+  const idle = Object.entries(lb.players).filter(([, p]) => p.status === 'idle' && !p.pending && !p.go && !(p.cool && p.cool > now()));
   while (idle.length >= 2) {
-    // accoppiamento casuale
+    // accoppiamento casuale: proposta di sfida con accettazione
     const i = Math.floor(Math.random() * idle.length); const [aId, a] = idle.splice(i, 1)[0];
     const j = Math.floor(Math.random() * idle.length); const [bId, b] = idle.splice(j, 1)[0];
-    a.match = { opp: bId, oppName: b.name, call: true };
-    b.match = { opp: aId, oppName: a.name, call: false };
-    a.matchStart = b.matchStart = now();
+    const t = now();
+    a.pending = { opp: bId, oppName: b.name, call: true, acc: false, t };
+    b.pending = { opp: aId, oppName: a.name, call: false, acc: false, t };
+    a.status = b.status = 'pending';
   }
 }
 
@@ -142,9 +154,27 @@ const server = http.createServer((req, res) => {
 
         if (act === 'beat') {
           pairInLobby(lb);
-          let match = null;
-          if (me.match) { match = me.match; me.match = null; me.status = 'playing'; }
-          return send(200, { players: playersView(lb), match });
+          let pending = null, go = null;
+          if (me.pending) pending = {
+            oppName: me.pending.oppName,
+            left: Math.max(0, 20 - Math.round((now() - me.pending.t) / 1000)),
+            accepted: !!me.pending.acc
+          };
+          if (me.go) { go = me.go; me.go = null; me.status = 'playing'; me.matchStart = now(); }
+          return send(200, { players: playersView(lb), pending, go });
+        }
+        if (act === 'accept') {
+          const p = me.pending;
+          if (!p) return send(200, { ok: false });
+          if (!body.accept) { cancelPending(lb, body.peerId); return send(200, { ok: true }); }
+          p.acc = true;
+          const opp = lb.players[p.opp];
+          if (opp && opp.pending && opp.pending.acc) { // entrambi hanno accettato
+            me.go = { opp: p.opp, oppName: p.oppName, call: p.call };
+            opp.go = { opp: body.peerId, oppName: me.name, call: opp.pending.call };
+            me.pending = null; opp.pending = null;
+          }
+          return send(200, { ok: true });
         }
         if (act === 'result') {
           if (body.won) me.score += points(body.flips);

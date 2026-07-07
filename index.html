@@ -324,6 +324,17 @@
   </div>
 </div>
 
+<!-- ============ MODALE ACCETTA SFIDA ============ -->
+<div class="modal" id="acceptModal">
+  <div class="inner" style="text-align:center">
+    <h2 style="font-family:'Baloo 2';color:var(--accent)">⚔️ Sfida trovata!</h2>
+    <p id="accText" class="status" style="font-size:1.05rem;margin:8px 0"></p>
+    <div class="code-big" id="accCount">20</div>
+    <button id="accYes">✅ Accetta</button>
+    <button id="accNo" class="warn">❌ Rifiuta</button>
+  </div>
+</div>
+
 <!-- ============ BANNER FINE ============ -->
 <div class="banner" id="banner">
   <div class="inner">
@@ -766,8 +777,46 @@ async function lobbyBeat(){
   try{
     const j=await api(`/api/lobby/${lobby.id}/beat`,undefined,{peerId:gpeerId});
     renderLobbyPlayers(j.players||[]);
-    if(j.match&&!inMatch)startLobbyMatch(j.match);
+    if(j.go&&!inMatch){closeAccept();startLobbyMatch(j.go);}
+    else if(j.pending&&!inMatch){showAccept(j.pending);}
+    else if(!j.pending&&acceptOpen&&!inMatch){closeAccept();toast('Sfida annullata');}
   }catch(e){$('lobbyStatus').textContent='⚠️ server non raggiungibile…';}
+}
+/* --- accettazione sfida con countdown --- */
+let acceptOpen=false, accTimer=null, accAccepted=false;
+function showAccept(p){
+  if(acceptOpen)return;
+  acceptOpen=true;accAccepted=!!p.accepted;
+  $('accText').textContent='Contro '+(p.oppName||'???');
+  $('accYes').disabled=accAccepted;
+  $('acceptModal').classList.add('show');
+  let left=(p.left!=null?p.left:20);
+  $('accCount').textContent=left;
+  clearInterval(accTimer);
+  accTimer=setInterval(()=>{
+    left--;
+    $('accCount').textContent=Math.max(0,left);
+    if(left<=0){
+      if(!accAccepted)respondAccept(false);   // tempo scaduto = rifiuto
+      else closeAccept();                      // l'altro non ha risposto
+    }
+  },1000);
+}
+function closeAccept(){
+  acceptOpen=false;accAccepted=false;
+  clearInterval(accTimer);accTimer=null;
+  $('acceptModal').classList.remove('show');
+}
+async function respondAccept(acc){
+  try{await api(`/api/lobby/${lobby.id}/accept`,undefined,{peerId:gpeerId,accept:acc});}catch(e){}
+  if(acc){
+    accAccepted=true;
+    $('accYes').disabled=true;
+    $('accText').textContent='✅ Accettato — aspetto la risposta dell\'avversario…';
+    lobbyBeat(); // controlla subito se anche l'altro ha già accettato
+  }else{
+    closeAccept();
+  }
 }
 function renderLobbyPlayers(list){
   const tb=$('lobbyPlayers');tb.innerHTML='';
@@ -775,7 +824,7 @@ function renderLobbyPlayers(list){
     const tr=document.createElement('tr');
     tr.innerHTML=`<td>${['🥇','🥈','🥉'][i]||(i+1)}</td>
       <td>${p.name}${p.peerId===gpeerId?' <b style="color:var(--accent2)">(tu)</b>':''}</td>
-      <td><span class="tag ${p.status==='playing'?'play':''}">${p.status==='playing'?'in partita':'in attesa'}</span></td>
+      <td><span class="tag ${p.status==='playing'?'play':''}">${p.status==='playing'?'in partita':(p.status==='pending'?'⚔️ proposta':'in attesa')}</span></td>
       <td class="pts">${p.score}</td>`;
     tb.appendChild(tr);
   });
@@ -1512,6 +1561,8 @@ $('leaveBtn').onclick=()=>{
 $('homeBtn').onclick=()=>location.reload();
 $('btnBot').onclick=startBotSetup;
 $('skipBtn').onclick=endFlipTimer;
+$('accYes').onclick=()=>respondAccept(true);
+$('accNo').onclick=()=>respondAccept(false);
 $('nextBtn').onclick=()=>{
   $('banner').classList.remove('show');
   if(MODE==='lobby'){show('scr-lobby');}
