@@ -1,0 +1,1517 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Indovina Chi 3D</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0e1f; --panel:rgba(23,30,54,.82); --panel2:#232c4d;
+    --accent:#ffb020; --accent2:#4cc3ff; --ok:#2ee06f; --bad:#ff4d5e;
+    --text:#eef1fb; --muted:#9aa5c9; --border:rgba(120,140,220,.22);
+  }
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%; overflow:hidden;}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:'Nunito',system-ui,sans-serif;
+    background-image:
+      radial-gradient(60vw 60vh at 15% 0%, rgba(76,110,255,.16), transparent 60%),
+      radial-gradient(50vw 50vh at 90% 100%, rgba(255,120,40,.10), transparent 60%),
+      radial-gradient(40vw 40vh at 80% 10%, rgba(0,200,255,.08), transparent 60%);
+  }
+  .screen{display:none; max-width:1100px; margin:0 auto; padding:16px; height:100%; overflow-y:auto;}
+  .screen.active{display:block;}
+  .logo{
+    font-family:'Baloo 2',cursive; font-weight:800; font-size:clamp(1.8rem,5.5vw,3rem);
+    text-align:center; margin:20px 0 2px; letter-spacing:.02em; line-height:1;
+    background:linear-gradient(180deg,#ffd977,#ff9d2e 60%,#ff7a3c);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    filter:drop-shadow(0 4px 14px rgba(255,150,40,.35));
+  }
+  h1{font-family:'Baloo 2',cursive; font-size:1.7rem; text-align:center; margin:20px 0 4px; color:var(--accent);}
+  .sub{text-align:center; color:var(--muted); margin-bottom:20px; font-size:.95rem;}
+  .card{
+    background:var(--panel); backdrop-filter:blur(12px);
+    border:1px solid var(--border); border-radius:18px;
+    padding:18px 20px; max-width:460px; margin:0 auto 14px;
+    box-shadow:0 18px 40px rgba(0,0,0,.35);
+  }
+  .card h2{font-family:'Baloo 2',cursive; font-size:1.08rem; margin-bottom:10px; color:var(--accent2); letter-spacing:.03em;}
+  button{
+    background:linear-gradient(180deg,#ffc44d,#ff9d2e); color:#2a1600;
+    border:none; border-radius:13px; padding:12px 18px;
+    font-size:1rem; font-weight:800; font-family:'Nunito',sans-serif;
+    cursor:pointer; width:100%; margin-top:8px;
+    box-shadow:0 6px 0 rgba(160,80,0,.45), 0 10px 24px rgba(0,0,0,.35);
+    transition:transform .08s, box-shadow .08s, filter .15s;
+  }
+  button:active{transform:translateY(3px); box-shadow:0 3px 0 rgba(160,80,0,.45);}
+  button.sec{background:linear-gradient(180deg,#2d3a68,#222c50); color:var(--text);
+    box-shadow:0 6px 0 rgba(8,12,30,.8), 0 10px 24px rgba(0,0,0,.3); border:1px solid var(--border);}
+  button.warn{background:linear-gradient(180deg,#ff6b78,#e63e50); color:#fff;
+    box-shadow:0 6px 0 rgba(120,10,25,.6);}
+  button:disabled{opacity:.4; cursor:not-allowed; filter:grayscale(.5);}
+  input[type=text]{
+    width:100%; padding:12px; border-radius:13px; border:1px solid var(--border);
+    background:rgba(6,10,26,.8); color:var(--text); font-size:1rem; font-weight:700;
+    text-align:center; font-family:'Nunito'; outline:none; transition:border .2s;
+  }
+  input[type=text].code{text-transform:uppercase; letter-spacing:.25em; font-size:1.15rem; font-weight:800;}
+  input[type=text]:focus{border-color:var(--accent2);}
+  .row{display:flex; gap:8px; align-items:center;}
+  .row>*{flex:1;}
+  .status{text-align:center; color:var(--muted); margin:10px 0; min-height:1.2em; font-size:.9rem;}
+  .code-big{
+    font-family:'Baloo 2',cursive; font-size:2rem; letter-spacing:.22em; text-align:center;
+    color:var(--accent); font-weight:800; margin:6px 0;
+    text-shadow:0 0 24px rgba(255,176,32,.5); word-break:break-all;
+  }
+  .preview{display:grid; grid-template-columns:repeat(auto-fill,minmax(64px,1fr)); gap:8px; margin-top:12px;}
+  .preview img{width:100%; aspect-ratio:1; object-fit:cover; border-radius:10px; border:1px solid var(--border);}
+  .choice{display:flex; gap:10px;}
+  .choice button{flex:1;}
+  label.chk{display:flex; gap:8px; align-items:center; margin:10px 0 2px; color:var(--muted); font-size:.9rem; cursor:pointer;}
+  /* tabella giocatori lobby */
+  table.pl{width:100%; border-collapse:collapse; margin-top:6px;}
+  table.pl td{padding:7px 6px; border-bottom:1px solid var(--border); font-size:.92rem;}
+  table.pl td.pts{text-align:right; font-weight:800; color:var(--accent);}
+  .tag{font-size:.66rem; padding:2px 8px; border-radius:999px; background:var(--panel2); color:var(--muted);}
+  .tag.play{background:rgba(46,224,111,.18); color:var(--ok);}
+  /* lista lobby aperte */
+  .lobitem{display:flex; align-items:center; gap:10px; background:var(--panel2); border:1px solid var(--border);
+    border-radius:12px; padding:10px 14px; margin-top:8px;}
+  .lobitem .nm{flex:1; font-weight:800;}
+  .lobitem button{width:auto; margin:0; padding:8px 16px; font-size:.85rem;}
+
+  /* ====== modale categorie ====== */
+  .modal{position:fixed; inset:0; background:rgba(3,6,18,.9); display:none; align-items:center; justify-content:center; z-index:70; padding:18px;}
+  .modal.show{display:flex;}
+  .modal .inner{background:var(--panel); backdrop-filter:blur(16px); border:1px solid var(--border);
+    border-radius:20px; padding:24px; max-width:430px; width:100%; box-shadow:0 30px 80px rgba(0,0,0,.6);}
+  .chips{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0;}
+  .chips button{width:auto; margin:0; padding:9px 14px; font-size:.88rem; border-radius:999px;}
+
+  /* ====== schermata di gioco 3D ====== */
+  #scr-game{max-width:none; padding:0; position:relative;}
+  #c3d{position:absolute; inset:0; display:block; touch-action:none;}
+  .hud{position:absolute; z-index:5;}
+  .hud-top{top:12px; left:12px; right:12px; display:flex; justify-content:space-between; align-items:flex-start; gap:10px; pointer-events:none;}
+  .mycard{
+    display:flex; align-items:center; gap:12px; background:var(--panel); backdrop-filter:blur(12px);
+    border:1px solid var(--border); border-radius:16px; padding:10px 14px; pointer-events:auto;
+    box-shadow:0 12px 30px rgba(0,0,0,.4);
+  }
+  .mycard img{width:60px; height:60px; object-fit:cover; border-radius:10px; border:2px solid var(--accent);
+    box-shadow:0 0 16px rgba(255,176,32,.35);}
+  .mycard .lbl{font-size:.6rem; color:var(--muted); line-height:1.3; letter-spacing:.05em;}
+  .mycard .nm{font-family:'Baloo 2',cursive; font-weight:800; font-size:1.05rem;}
+  .hud-btns{display:flex; flex-direction:column; gap:7px; pointer-events:auto;}
+  .hud-btns button{width:auto; min-width:140px; margin:0; padding:10px 14px; font-size:.85rem;
+    background:var(--panel); backdrop-filter:blur(12px); color:var(--text);
+    border:1px solid var(--border); box-shadow:0 8px 20px rgba(0,0,0,.35); font-weight:700;}
+  .hud-btns button#guessBtn.on{background:linear-gradient(180deg,#3ef58a,#1fca5e); color:#04250f; border-color:transparent;}
+  .hud-bottom-wrap{bottom:14px; left:50%; transform:translateX(-50%); display:flex; flex-direction:column;
+    align-items:center; gap:9px; max-width:96vw; pointer-events:none;}
+  .statusline{
+    background:var(--panel); backdrop-filter:blur(12px); border:1px solid var(--border);
+    border-radius:12px; padding:9px 18px; font-size:.9rem; font-weight:700; color:var(--text); text-align:center;
+    box-shadow:0 10px 26px rgba(0,0,0,.4);
+  }
+  #qbar{display:none; gap:7px; overflow-x:auto; max-width:96vw; padding:4px; pointer-events:auto;
+    -webkit-overflow-scrolling:touch; scrollbar-width:thin;}
+  #qbar.on{display:flex;}
+  #qbar button{white-space:nowrap; width:auto; margin:0; padding:9px 14px; font-size:.82rem;
+    background:var(--panel); backdrop-filter:blur(10px); color:var(--text);
+    border:1px solid rgba(76,195,255,.5); border-radius:999px; font-weight:700;
+    box-shadow:0 6px 16px rgba(0,0,0,.3);}
+  #qbar button:disabled{border-color:var(--border);}
+  #skipBtn{display:none; pointer-events:auto; width:auto; padding:9px 18px; font-size:.85rem; border-radius:999px;}
+  #skipBtn.on{display:block;}
+  .banner{position:fixed; inset:0; background:rgba(3,6,18,.9); display:none; align-items:center; justify-content:center; z-index:50; padding:20px;}
+  .banner.show{display:flex;}
+  .banner .inner{
+    background:var(--panel); backdrop-filter:blur(16px); border:1px solid var(--border);
+    border-radius:22px; padding:32px; text-align:center; max-width:400px; width:100%;
+    box-shadow:0 30px 80px rgba(0,0,0,.6);
+    animation:pop .45s cubic-bezier(.2,1.6,.4,1);
+  }
+  @keyframes pop{from{transform:scale(.6); opacity:0} to{transform:scale(1); opacity:1}}
+  .banner h2{font-family:'Baloo 2',cursive; font-size:2rem; margin-bottom:6px;}
+  .banner img{width:120px; height:120px; object-fit:cover; border-radius:16px; margin:14px auto; display:block;
+    border:3px solid var(--accent); box-shadow:0 0 30px rgba(255,176,32,.4);}
+  .toast{position:fixed; bottom:74px; left:50%; transform:translateX(-50%); background:var(--panel2);
+    border:1px solid var(--border); padding:10px 18px; border-radius:12px; font-size:.9rem; font-weight:700;
+    opacity:0; transition:opacity .3s; pointer-events:none; z-index:80;}
+  .toast.show{opacity:1;}
+  .spin{display:inline-block; animation:sp 1s linear infinite;}
+  @keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- ============ HOME ============ -->
+<div class="screen active" id="scr-home">
+  <div class="logo">🕵️ INDOVINA CHI <span style="color:#4cc3ff;-webkit-text-fill-color:#4cc3ff">3D</span></div>
+  <p class="sub">Sfide online, lobby a punti e board personalizzate</p>
+
+  <div class="card">
+    <div class="row">
+      <input type="text" id="myNameInp" maxlength="16" placeholder="Il tuo nome">
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>⚡ Partita random</h2>
+    <p class="status" style="margin:0 0 4px">Vieni abbinato a un giocatore casuale, categoria a sorpresa</p>
+    <button id="btnRandom">Trova avversario</button>
+  </div>
+
+  <div class="card">
+    <h2>🏟️ Lobby personalizzate <span class="tag">fino a 10</span></h2>
+    <button id="btnLobbyCreate">➕ Crea lobby con le tue foto</button>
+    <button id="btnBrowse" class="sec">📋 Lobby aperte</button>
+    <div class="row" style="margin-top:8px">
+      <input type="text" id="invInp" class="code" placeholder="INVITO ES: ABC123-XYZ45">
+      <button id="btnInvJoin" class="sec" style="flex:0 0 90px">Entra</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>🎲 Amichevole 1v1 con codice</h2>
+    <div class="choice">
+      <button id="btnCreate" class="sec">➕ Crea</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <input type="text" id="joinCode" class="code" maxlength="5" placeholder="CODICE">
+      <button id="btnJoin" class="sec" style="flex:0 0 90px">Entra</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>🤖 Allenamento</h2>
+    <button id="btnBot" class="sec">Gioca contro il Bot</button>
+  </div>
+
+  <div class="card" id="serverCard">
+    <h2>⚙️ Server</h2>
+    <div class="row">
+      <input type="text" id="serverInp" placeholder="https://tuo-server.onrender.com">
+      <button id="btnServerSave" class="sec" style="flex:0 0 90px">Salva</button>
+    </div>
+    <p class="status" id="serverStatus" style="margin:6px 0 0">Necessario per random e lobby. Vedi server/README.</p>
+  </div>
+  <p class="status" id="homeStatus"></p>
+</div>
+
+<!-- ============ SETUP amichevole/bot (host) ============ -->
+<div class="screen" id="scr-setup">
+  <h1>Prepara la board</h1>
+  <p class="sub" id="setupSub">Codice stanza — comunicalo al tuo avversario</p>
+  <div class="code-big" id="roomCode">·····</div>
+  <p class="status" id="peerStatus">In attesa dell'avversario…</p>
+  <div class="card">
+    <h2>Scegli la board</h2>
+    <div class="choice">
+      <button id="btnStd" class="sec">🎭 Categorie</button>
+      <button id="btnCustom" class="sec">🖼️ Le tue foto</button>
+    </div>
+    <input type="file" id="filePick" accept="image/*" multiple style="display:none">
+    <div id="customPreview" class="preview"></div>
+    <p class="status" id="setupStatus"></p>
+    <button id="btnStart" disabled>🚀 Inizia partita</button>
+    <button id="btnSetupBack" class="warn">Indietro</button>
+  </div>
+</div>
+
+<!-- ============ WAIT (guest amichevole) ============ -->
+<div class="screen" id="scr-wait">
+  <h1>Connesso!</h1>
+  <p class="sub">In attesa che l'host prepari la board…</p>
+  <p class="status">⏳</p>
+</div>
+
+<!-- ============ CREA LOBBY ============ -->
+<div class="screen" id="scr-lobbycreate">
+  <h1>Crea lobby</h1>
+  <p class="sub">Le tue foto diventano la board per tutta la lobby</p>
+  <div class="card">
+    <input type="text" id="lobbyNameInp" maxlength="24" placeholder="Nome della lobby">
+    <label class="chk"><input type="checkbox" id="lobbyOpenChk" checked> Ingresso libero (visibile a tutti)</label>
+    <button id="btnLobbyPics" class="sec">🖼️ Scegli le foto (min 8, max 24)</button>
+    <input type="file" id="filePickL" accept="image/*" multiple style="display:none">
+    <div id="lobbyPreview" class="preview"></div>
+    <p class="status" id="lobbyCreateStatus"></p>
+    <button id="btnLobbyGo" disabled>🚀 Crea e entra</button>
+    <button id="btnLobbyBack" class="warn">Indietro</button>
+  </div>
+</div>
+
+<!-- ============ SFOGLIA LOBBY ============ -->
+<div class="screen" id="scr-browse">
+  <h1>Lobby aperte</h1>
+  <p class="sub">Entra con un click</p>
+  <div class="card">
+    <div id="browseList"><p class="status">…</p></div>
+    <button id="btnBrowseRefresh" class="sec">🔄 Aggiorna</button>
+    <button id="btnBrowseBack" class="warn">Indietro</button>
+  </div>
+</div>
+
+<!-- ============ LOBBY ============ -->
+<div class="screen" id="scr-lobby">
+  <h1 id="lobbyTitle">Lobby</h1>
+  <p class="sub">Invito: <b id="lobbyInvite" style="color:var(--accent)">—</b></p>
+  <div class="card">
+    <h2>🏆 Classifica</h2>
+    <table class="pl"><tbody id="lobbyPlayers"></tbody></table>
+    <p class="status" id="lobbyStatus">In attesa di sfida…</p>
+    <button id="btnLobbyLeave" class="warn">Esci dalla lobby</button>
+  </div>
+  <p class="status">Vittoria = 100 − 3 punti per ogni tessera abbattuta (min 10)</p>
+</div>
+
+<!-- ============ RANDOM ============ -->
+<div class="screen" id="scr-random">
+  <h1>⚡ Partita random</h1>
+  <p class="sub">Categoria a sorpresa</p>
+  <div class="card" style="text-align:center">
+    <p class="status" id="randomStatus"><span class="spin">🔎</span> Cerco un avversario…</p>
+    <button id="btnRandomCancel" class="warn">Annulla</button>
+  </div>
+</div>
+
+<!-- ============ GAME (3D) ============ -->
+<div class="screen" id="scr-game">
+  <canvas id="c3d"></canvas>
+  <div class="hud hud-top">
+    <div class="mycard">
+      <img id="myImg" alt="">
+      <div>
+        <div class="lbl">IL TUO PERSONAGGIO<br>(l'avversario lo indovina)</div>
+        <div class="nm" id="myName">—</div>
+      </div>
+    </div>
+    <div class="hud-btns">
+      <button id="guessBtn">🎯 Indovina!</button>
+      <button id="resetTiles">↩️ Rialza tutti</button>
+      <button id="leaveBtn" class="warn" style="background:linear-gradient(180deg,#ff6b78,#e63e50);color:#fff;">Esci</button>
+    </div>
+  </div>
+  <div class="hud hud-bottom-wrap">
+    <div id="qbar"></div>
+    <div id="gameStatus" class="statusline">Tocca una tessera per abbatterla · trascina per ruotare la visuale</div>
+    <button id="skipBtn">⏭️ Passa subito il turno</button>
+  </div>
+</div>
+
+<!-- ============ MODALE CATEGORIE ============ -->
+<div class="modal" id="catModal">
+  <div class="inner">
+    <h2 style="color:var(--accent2);font-family:'Baloo 2'">🎭 Scegli una categoria</h2>
+    <div class="chips" id="catChips"></div>
+    <div class="row">
+      <input type="text" id="catSearch" placeholder="Cerca: es. tennisti, pittori, rapper…">
+      <button id="catSearchBtn" class="sec" style="flex:0 0 84px">🔍 Cerca</button>
+    </div>
+    <p class="status" id="catStatus"></p>
+    <button id="catCancel" class="warn">Annulla</button>
+  </div>
+</div>
+
+<!-- ============ BANNER FINE ============ -->
+<div class="banner" id="banner">
+  <div class="inner">
+    <h2 id="banTitle"></h2>
+    <p id="banText" style="color:var(--muted)"></p>
+    <img id="banImg" alt="">
+    <button id="nextBtn">🔁 Rivincita</button>
+    <button id="homeBtn" class="sec">🏠 Home</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+/* ================= CATEGORIE ================= */
+const CATS={
+ famosi:{label:'⭐ Famosi', list:[
+  ['Leonardo DiCaprio','en',['uomo','film']],['Rihanna','en',['donna','music']],
+  ['Cristiano Ronaldo','en',['uomo','sport']],['Taylor Swift','en',['donna','music']],
+  ['Barack Obama','en',['uomo']],['Lionel Messi','en',['uomo','sport']],
+  ['Beyoncé','en',['donna','music']],['Brad Pitt','en',['uomo','film']],
+  ['Lady Gaga','en',['donna','music']],['Elon Musk','en',['uomo']],
+  ['Serena Williams','en',['donna','sport']],['Johnny Depp','en',['uomo','film']],
+  ['Adele','en',['donna','music']],['Will Smith','en',['uomo','film']],
+  ['Emma Watson','en',['donna','film']],['Keanu Reeves','en',['uomo','film']],
+  ['Shakira','en',['donna','music']],['Valentino Rossi','it',['uomo','sport','ita']],
+  ['Chiara Ferragni','it',['donna','ita']],['Jovanotti','it',['uomo','music','ita']],
+  ['Laura Pausini','it',['donna','music','ita']],['Roberto Benigni','it',['uomo','film','ita']],
+  ['Bebe Vio','it',['donna','sport','ita']],['Alessandro Del Piero','it',['uomo','sport','ita']]]},
+ calciatori:{label:'⚽ Calciatori', list:[
+  ['Lionel Messi','en'],['Cristiano Ronaldo','en'],['Neymar','en'],['Kylian Mbappé','en'],
+  ['Erling Haaland','en'],['Mohamed Salah','en'],['Kevin De Bruyne','en'],['Luka Modrić','en'],
+  ['Robert Lewandowski','en'],['Karim Benzema','en'],['Harry Kane','en'],['Vinícius Júnior','en'],
+  ['Zlatan Ibrahimović','en'],['Gianluigi Buffon','en'],['Francesco Totti','it'],['Alessandro Del Piero','it'],
+  ['Paolo Maldini','it'],['Roberto Baggio','it'],['Andrea Pirlo','it'],['Gianluigi Donnarumma','it'],
+  ['Ronaldinho','en'],['Kaká','en'],['Diego Maradona','en'],['Pelé','en']]},
+ cantanti:{label:'🎤 Cantanti', list:[
+  ['Taylor Swift','en'],['Rihanna','en'],['Adele','en'],['Beyoncé','en'],
+  ['Lady Gaga','en'],['Ed Sheeran','en'],['Justin Bieber','en'],['Ariana Grande','en'],
+  ['Billie Eilish','en'],['Bruno Mars','en'],['Dua Lipa','en'],['Shakira','en'],
+  ['Eminem','en'],['Madonna','en'],['Vasco Rossi','it'],['Laura Pausini','it'],
+  ['Eros Ramazzotti','it'],['Jovanotti','it'],['Tiziano Ferro','it'],['Marco Mengoni','it'],
+  ['Annalisa','it'],['Elodie (cantante)','it'],['Ultimo (cantante)','it'],['Damiano David','it']]},
+ attori:{label:'🎬 Attori', list:[
+  ['Leonardo DiCaprio','en'],['Brad Pitt','en'],['Johnny Depp','en'],['Will Smith','en'],
+  ['Tom Cruise','en'],['Tom Hanks','en'],['Robert De Niro','en'],['Al Pacino','en'],
+  ['Meryl Streep','en'],['Julia Roberts','en'],['Angelina Jolie','en'],['Scarlett Johansson','en'],
+  ['Emma Watson','en'],['Jennifer Lawrence','en'],['Keanu Reeves','en'],['Morgan Freeman','en'],
+  ['Denzel Washington','en'],['Anne Hathaway','en'],['Natalie Portman','en'],['Roberto Benigni','it'],
+  ['Checco Zalone','it'],['Pierfrancesco Favino','it'],['Monica Bellucci','it'],['Claudio Bisio','it']]},
+ storici:{label:'🏛️ Storici', list:[
+  ['Gaio Giulio Cesare','it'],['Napoleone Bonaparte','it'],['Leonardo da Vinci','it'],['Cleopatra','it'],
+  ['Albert Einstein','en'],['Isaac Newton','en'],['Galileo Galilei','it'],['Cristoforo Colombo','it'],
+  ['Dante Alighieri','it'],['Michelangelo','en'],['Wolfgang Amadeus Mozart','en'],['Ludwig van Beethoven','en'],
+  ['Abraham Lincoln','en'],['George Washington','en'],['Winston Churchill','en'],['Mahatma Gandhi','en'],
+  ['Nelson Mandela','en'],['Martin Luther King Jr.','en'],['Marie Curie','en'],['Charles Darwin','en'],
+  ['William Shakespeare','en'],['Alessandro Magno','it'],['Giuseppe Garibaldi','it'],['Frida Kahlo','en']]},
+ anime:{label:'🈶 Anime', list:[
+  ['Goku','en'],['Vegeta','en'],['Naruto Uzumaki','en'],['Sasuke Uchiha','en'],
+  ['Monkey D. Luffy','en'],['Roronoa Zoro','en'],['Ichigo Kurosaki','en'],['Light Yagami','en'],
+  ['L (Death Note)','en'],['Eren Yeager','en'],['Mikasa Ackerman','en'],['Levi Ackerman','en'],
+  ['Edward Elric','en'],['Spike Spiegel','en'],['Usagi Tsukino','en'],['Pikachu','en'],
+  ['Ash Ketchum','en'],['Doraemon (character)','en'],['Lupin III','en'],['Kenshiro','en'],
+  ['Saitama (One-Punch Man)','en'],['Tanjiro Kamado','en'],['Gon Freecss','en'],['Astro Boy (character)','en']]},
+};
+
+/* ================= STATO ================= */
+let MODE='friend';       // friend | bot | lobby | random
+let peer=null, conn=null, isHost=false;
+let board=[];            // [{n,img,t}]
+let mySecret=-1;
+let guessMode=false, gameOver=false;
+let customImgs=[];
+let botMode=false, botSecret=-1, botCand=[], botQs=[], myTurn=true;
+/* rete server */
+let gpeer=null, gpeerId=null;
+let lobby=null;          // {id,code,name,board}
+let beatTimer=null, queueTimer=null, inMatch=false, oppName='';
+
+/* ================= UTIL ================= */
+const $=id=>document.getElementById(id);
+const store={
+  get k(){return null;},
+  read(k){try{return localStorage.getItem(k)||'';}catch(e){return '';}},
+  write(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+};
+// Se la pagina è servita dal nostro server (http/https), usa la stessa origine: zero configurazione.
+// Solo aprendo il file in locale (file://) serve impostare l'URL a mano.
+const AUTO_SERVER=/^https?:$/.test(location.protocol);
+const SERVER=()=>AUTO_SERVER?location.origin:store.read('gwho-server').replace(/\/+$/,'');
+const myNick=()=>($('myNameInp').value.trim()||'Player').slice(0,16);
+function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));$(id).classList.add('active');
+  if(id==='scr-game')resize3D();}
+function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800);}
+function randCode(){const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<5;i++)s+=c[Math.floor(Math.random()*c.length)];return s;}
+async function api(path,method,bodyObj){
+  const r=await fetch(SERVER()+path,{
+    method:method||(bodyObj!==undefined?'POST':'GET'),
+    headers:bodyObj!==undefined?{'Content-Type':'application/json'}:undefined,
+    body:bodyObj!==undefined?JSON.stringify(bodyObj):undefined
+  });
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(j.error||('HTTP '+r.status));
+  return j;
+}
+function avatar(name){
+  const cv=document.createElement('canvas');cv.width=cv.height=220;const x=cv.getContext('2d');
+  let h=0;for(const ch of name)h=(h*31+ch.charCodeAt(0))%360;
+  const gr=x.createLinearGradient(0,0,0,220);
+  gr.addColorStop(0,`hsl(${h},60%,48%)`);gr.addColorStop(1,`hsl(${h},60%,32%)`);
+  x.fillStyle=gr;x.fillRect(0,0,220,220);
+  x.fillStyle='#fff';x.font='bold 84px Arial';x.textAlign='center';x.textBaseline='middle';
+  x.fillText(name.split(' ').map(w=>w[0]).slice(0,2).join(''),110,118);
+  return cv.toDataURL('image/jpeg',.8);
+}
+async function wikiThumb(title,lang){
+  try{
+    const r=await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
+    if(!r.ok)throw 0;const j=await r.json();
+    return (j.thumbnail&&j.thumbnail.source)?j.thumbnail.source:null;
+  }catch(e){return null;}
+}
+function resizeImage(file){
+  return new Promise(res=>{
+    const img=new Image();img.onload=()=>{
+      const s=Math.min(img.width,img.height);
+      const cv=document.createElement('canvas');cv.width=cv.height=220;
+      cv.getContext('2d').drawImage(img,(img.width-s)/2,(img.height-s)/2,s,s,0,0,220,220);
+      res(cv.toDataURL('image/jpeg',.72));
+    };
+    img.onerror=()=>res(null);
+    img.src=URL.createObjectURL(file);
+  });
+}
+function loadImg(src){
+  return new Promise(res=>{
+    const im=new Image();
+    if(!src.startsWith('data:'))im.crossOrigin='anonymous';
+    im.onload=()=>res(im);
+    im.onerror=()=>res(null);
+    im.src=src;
+  });
+}
+function cleanName(s){return s.replace(/\s*\(.*?\)\s*/g,'').slice(0,20);}
+async function loadCatBoard(key){
+  const chars=await Promise.all(CATS[key].list.map(async([n,lang,tags])=>{
+    const u=await wikiThumb(n,lang);
+    return {n:cleanName(n), img:u||avatar(n), t:tags||[]};
+  }));
+  return chars;
+}
+/* --- motore di ricerca intelligente: Wikidata → categorie Wikipedia → ricerca libera --- */
+function searchVariants(q){
+  const v=[q];
+  if(q.endsWith('i'))v.push(q.slice(0,-1)+'a', q.slice(0,-1)+'e');
+  if(q.endsWith('e'))v.push(q.slice(0,-1)+'a');
+  return [...new Set(v)];
+}
+async function wdSearch(q){ // 1) Wikidata: personaggi più famosi (sitelinks) con foto
+  let ents=[];
+  for(const t of searchVariants(q)){
+    const s=await fetch(`https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(t)}&language=it&uselang=it&format=json&origin=*&limit=3`)
+      .then(r=>r.json()).catch(()=>({}));
+    ents=ents.concat((s.search||[]).map(e=>e.id));
+  }
+  ents=[...new Set(ents)].slice(0,3);
+  for(const id of ents){
+    const u=`{?p wdt:P106 wd:${id}} UNION {?p wdt:P641 wd:${id}} UNION {?p wdt:P31 wd:${id}} UNION {?p wdt:P136 wd:${id}}`;
+    const sparql=`SELECT ?p ?pLabel ?img WHERE{?p wdt:P18 ?img;wikibase:sitelinks ?sl.${u}.SERVICE wikibase:label{bd:serviceParam wikibase:language "it,en".}}ORDER BY DESC(?sl) LIMIT 24`;
+    const r=await fetch('https://query.wikidata.org/sparql?format=json&query='+encodeURIComponent(sparql))
+      .then(r=>r.ok?r.json():null).catch(()=>null);
+    const rows=(r&&r.results&&r.results.bindings)||[];
+    if(rows.length>=8){
+      return rows.map(b=>({n:cleanName(b.pLabel.value), img:b.img.value.replace('http://','https://')+'?width=300', t:[]}));
+    }
+  }
+  return null;
+}
+async function wpCatSearch(q){ // 2) categorie di Wikipedia (escluse le Stub)
+  const s=await fetch(`https://it.wikipedia.org/w/api.php?action=query&list=search&srnamespace=14&srsearch=${encodeURIComponent(q)}&srlimit=6&format=json&origin=*`)
+    .then(r=>r.json()).catch(()=>({}));
+  const cats=((s.query||{}).search||[]).map(r=>r.title).filter(t=>!/stub/i.test(t));
+  for(const cat of cats.slice(0,4)){
+    const j=await fetch(`https://it.wikipedia.org/w/api.php?action=query&generator=categorymembers&gcmtitle=${encodeURIComponent(cat)}&gcmnamespace=0&gcmlimit=50&prop=pageimages&piprop=thumbnail&pithumbsize=300&format=json&origin=*`)
+      .then(r=>r.json()).catch(()=>({}));
+    const pages=Object.values((j.query||{}).pages||{}).filter(p=>p.thumbnail);
+    if(pages.length>=8){
+      // mescola per varietà e prendi 24
+      pages.sort(()=>Math.random()-.5);
+      return pages.slice(0,24).map(p=>({n:cleanName(p.title), img:p.thumbnail.source, t:[]}));
+    }
+  }
+  return null;
+}
+async function wpFreeSearch(q){ // 3) ricerca libera come ultima spiaggia
+  const j=await fetch(`https://it.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(q)}&gsrlimit=40&gsrnamespace=0&prop=pageimages&piprop=thumbnail&pithumbsize=300&format=json&origin=*`)
+    .then(r=>r.json()).catch(()=>({}));
+  const pages=Object.values((j.query||{}).pages||{}).filter(p=>p.thumbnail)
+    .sort((a,b)=>(a.index||99)-(b.index||99));
+  if(pages.length>=8)return pages.slice(0,24).map(p=>({n:cleanName(p.title), img:p.thumbnail.source, t:[]}));
+  return null;
+}
+async function smartSearch(q){
+  let out=null;
+  try{out=await wdSearch(q);}catch(e){}
+  if(!out)try{out=await wpCatSearch(q);}catch(e){}
+  if(!out)try{out=await wpFreeSearch(q);}catch(e){}
+  if(!out)throw new Error('trovati troppo pochi personaggi con foto');
+  return out;
+}
+/* --- modale categorie: ritorna Promise<chars|null> --- */
+let catResolve=null;
+function chooseCategory(){
+  return new Promise(res=>{
+    catResolve=res;
+    $('catStatus').textContent='';
+    $('catModal').classList.add('show');
+  });
+}
+function closeCat(v){$('catModal').classList.remove('show');if(catResolve){catResolve(v);catResolve=null;}}
+function initCatModal(){
+  const chips=$('catChips');
+  for(const [key,c] of Object.entries(CATS)){
+    const b=document.createElement('button');b.className='sec';b.textContent=c.label;
+    b.onclick=async()=>{
+      $('catStatus').innerHTML='<span class="spin">⏳</span> Scarico le foto…';
+      try{const chars=await loadCatBoard(key);closeCat(chars);}
+      catch(e){$('catStatus').textContent='Errore: '+e.message;}
+    };
+    chips.appendChild(b);
+  }
+  $('catSearchBtn').onclick=async()=>{
+    const q=$('catSearch').value.trim();
+    if(q.length<3){toast('Scrivi almeno 3 lettere');return;}
+    $('catStatus').innerHTML='<span class="spin">🔎</span> Cerco su Wikidata…';
+    try{const chars=await smartSearch(q);closeCat(chars);}
+    catch(e){$('catStatus').textContent='😕 '+e.message+' — prova con un altro termine';}
+  };
+  $('catSearch').addEventListener('keydown',e=>{if(e.key==='Enter')$('catSearchBtn').click();});
+  $('catCancel').onclick=()=>closeCat(null);
+}
+function randomCatKey(){const k=Object.keys(CATS);return k[Math.floor(Math.random()*k.length)];}
+
+/* ================= P2P ================= */
+function send(m){if(conn&&conn.open)conn.send(m);}
+function setupConn(c){
+  conn=c;
+  conn.on('data',onMsg);
+  conn.on('close',()=>{
+    if(!gameOver&&inMatch){toast('⚠️ Avversario disconnesso');abortMatch();}
+    else if(!gameOver)toast('⚠️ Avversario disconnesso');
+  });
+  conn.on('error',e=>toast('Errore connessione'));
+}
+function ensureGPeer(){
+  return new Promise((res,rej)=>{
+    if(gpeer&&gpeerId)return res(gpeerId);
+    gpeer=new Peer();
+    gpeer.on('open',id=>{gpeerId=id;res(id);});
+    gpeer.on('connection',c=>{setupConn(c);});
+    gpeer.on('error',e=>{if(!gpeerId)rej(e);else toast('Peer: '+e.type);});
+  });
+}
+/* --- amichevole con codice (P2P puro) --- */
+function createGame(){
+  MODE='friend';isHost=true;botMode=false;
+  const code=randCode();
+  $('homeStatus').textContent='Creazione stanza…';
+  peer=new Peer('gwho-'+code);
+  peer.on('open',()=>{
+    $('roomCode').textContent=code;$('roomCode').style.display='';
+    $('setupSub').textContent='Codice stanza — comunicalo al tuo avversario';
+    $('peerStatus').textContent="In attesa dell'avversario…";
+    show('scr-setup');$('homeStatus').textContent='';
+  });
+  peer.on('connection',c=>{
+    setupConn(c);
+    c.on('open',()=>{$('peerStatus').textContent='✅ Avversario connesso!';refreshStart();});
+  });
+  peer.on('error',e=>{
+    if(e.type==='unavailable-id'){peer.destroy();createGame();}
+    else $('homeStatus').textContent='Errore: '+e.type;
+  });
+}
+function joinGame(){
+  const code=$('joinCode').value.trim().toUpperCase();
+  if(code.length!==5){toast('Codice di 5 caratteri');return;}
+  MODE='friend';isHost=false;botMode=false;
+  $('homeStatus').textContent='Connessione…';
+  peer=new Peer();
+  peer.on('open',()=>{
+    const c=peer.connect('gwho-'+code,{reliable:true});
+    setupConn(c);
+    c.on('open',()=>{show('scr-wait');$('homeStatus').textContent='';});
+  });
+  peer.on('error',e=>{
+    $('homeStatus').textContent = e.type==='peer-unavailable' ? 'Stanza non trovata.' : 'Errore: '+e.type;
+  });
+}
+
+/* ================= MESSAGGI DI PARTITA ================= */
+function onMsg(m){
+  switch(m.type){
+    case 'board': board=m.chars; break;
+    case 'secret': mySecret=m.yours; startGame(); break;
+    case 'guess': {
+      const correct = m.idx===mySecret;
+      send({type:'guessResult', correct, idx:m.idx});
+      if(correct){
+        matchEnded(false);
+        endGame(false, board[mySecret], `${oppName||'L\'avversario'} ha indovinato: eri ${board[mySecret].n}.`);
+      }else{
+        matchEnded(true);
+        endGame(true, board[mySecret], `Ha sbagliato (${board[m.idx].n}). Eri ${board[mySecret].n}: hai vinto tu!`);
+      }
+      break;
+    }
+    case 'guessResult':
+      matchEnded(m.correct);
+      endGame(m.correct, board[m.idx], m.correct
+        ? `Esatto! Era proprio ${board[m.idx].n}.`
+        : `No, non era ${board[m.idx].n}. Hai perso.`);
+      break;
+    case 'flip':
+      if(oppTiles[m.idx])oppTiles[m.idx].down=m.down;
+      break;
+    case 'flipAll':
+      oppTiles.forEach(t=>t.down=false);
+      break;
+    case 'rematch-req':
+      if(MODE==='friend'){
+        toast('🔁 L\'avversario vuole la rivincita…');
+        if(isHost) dealSecrets();
+        else send({type:'rematch-req'});
+      }
+      break;
+  }
+}
+function myFlips(){return tiles.filter(t=>t.down).length;}
+function matchEnded(iWon){
+  if(MODE==='lobby'&&lobby){
+    inMatch=false;
+    api(`/api/lobby/${lobby.id}/result`,undefined,{peerId:gpeerId,won:iWon,flips:myFlips()})
+      .then(j=>{if(iWon)toast(`🏆 +${Math.max(10,100-3*myFlips())} punti!`);})
+      .catch(()=>{});
+  }
+  if(MODE==='random')inMatch=false;
+}
+function abortMatch(){
+  if(MODE==='lobby'&&lobby){
+    inMatch=false;
+    api(`/api/lobby/${lobby.id}/result`,undefined,{peerId:gpeerId,won:false}).catch(()=>{});
+    show('scr-lobby');
+  }else if(MODE==='random'){
+    inMatch=false;
+    show('scr-home');
+  }
+}
+
+/* ================= SETUP amichevole/bot ================= */
+async function pickFromCategories(){
+  const chars=await chooseCategory();
+  if(!chars)return;
+  board=chars;customImgs=[];
+  renderPreview(board,$('customPreview'));
+  $('setupStatus').textContent=`Board pronta (${board.length} personaggi).`;
+  refreshStart();
+}
+async function pickCustom(files,intoArr,previewEl,statusEl){
+  statusEl.textContent='Elaboro le immagini…';
+  for(const f of files){
+    if(intoArr.length>=24)break;
+    const d=await resizeImage(f);
+    if(d)intoArr.push({n:f.name.replace(/\.[^.]+$/,'').slice(0,18), img:d, t:[]});
+  }
+  renderPreview(intoArr,previewEl);
+  statusEl.textContent=`${intoArr.length}/24 immagini ${intoArr.length<8?'(minimo 8)':'✔'} — clicca un nome per rinominare.`;
+}
+function renderPreview(chars,el){
+  el.innerHTML='';
+  chars.forEach((c)=>{
+    const d=document.createElement('div');d.style.textAlign='center';
+    d.innerHTML=`<img src="${c.img}"><div style="font-size:.6rem;color:var(--muted);cursor:pointer">${c.n}</div>`;
+    d.querySelector('div').onclick=()=>{
+      const nn=prompt('Nome personaggio:',c.n);
+      if(nn){c.n=nn.slice(0,18);renderPreview(chars,el);}
+    };
+    el.appendChild(d);
+  });
+}
+function refreshStart(){
+  $('btnStart').disabled=!((botMode||(conn&&conn.open))&&board.length>=8);
+}
+function dealSecrets(){
+  const a=Math.floor(Math.random()*board.length);
+  let b=Math.floor(Math.random()*board.length);
+  if(board.length>1)while(b===a)b=Math.floor(Math.random()*board.length);
+  mySecret=a;
+  if(botMode){
+    botSecret=b;
+    botCand=board.map((_,i)=>i);
+    myTurn=true;
+    startGame();
+    return;
+  }
+  send({type:'board', chars:board});
+  send({type:'secret', yours:b});
+  startGame();
+}
+
+/* ================= LOBBY (server) ================= */
+async function createLobby(){
+  if(customImgs.length<8){toast('Servono almeno 8 foto');return;}
+  $('lobbyCreateStatus').textContent='Creo la lobby…';
+  try{
+    await ensureGPeer();
+    const j=await api('/api/lobby',undefined,{
+      name:$('lobbyNameInp').value.trim()||('Lobby di '+myNick()),
+      open:$('lobbyOpenChk').checked,
+      board:customImgs
+    });
+    const join=await api(`/api/lobby/${j.id}/join`,undefined,{peerId:gpeerId,name:myNick(),code:j.code});
+    enterLobby(j.id,j.code,join);
+  }catch(e){$('lobbyCreateStatus').textContent='Errore: '+e.message;}
+}
+function enterLobby(id,code,join){
+  MODE='lobby';botMode=false;inMatch=false;
+  lobby={id,code,name:join.name,board:join.board};
+  $('lobbyTitle').textContent='🏟️ '+join.name;
+  $('lobbyInvite').textContent=id+'-'+code;
+  show('scr-lobby');
+  renderLobbyPlayers(join.players||[]);
+  clearInterval(beatTimer);
+  beatTimer=setInterval(lobbyBeat,2500);
+  lobbyBeat();
+}
+async function lobbyBeat(){
+  if(!lobby)return;
+  try{
+    const j=await api(`/api/lobby/${lobby.id}/beat`,undefined,{peerId:gpeerId});
+    renderLobbyPlayers(j.players||[]);
+    if(j.match&&!inMatch)startLobbyMatch(j.match);
+  }catch(e){$('lobbyStatus').textContent='⚠️ server non raggiungibile…';}
+}
+function renderLobbyPlayers(list){
+  const tb=$('lobbyPlayers');tb.innerHTML='';
+  list.forEach((p,i)=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${['🥇','🥈','🥉'][i]||(i+1)}</td>
+      <td>${p.name}${p.peerId===gpeerId?' <b style="color:var(--accent2)">(tu)</b>':''}</td>
+      <td><span class="tag ${p.status==='playing'?'play':''}">${p.status==='playing'?'in partita':'in attesa'}</span></td>
+      <td class="pts">${p.score}</td>`;
+    tb.appendChild(tr);
+  });
+  if(!inMatch)$('lobbyStatus').textContent=list.length<2?'Serve almeno un altro giocatore…':'In attesa di sfida…';
+}
+function startLobbyMatch(m){
+  inMatch=true;oppName=m.oppName||'avversario';
+  board=lobby.board;
+  toast('⚔️ Sfida contro '+oppName+'!');
+  $('lobbyStatus').textContent='⚔️ In partita contro '+oppName;
+  if(m.call){
+    const c=gpeer.connect(m.opp,{reliable:true});
+    setupConn(c);
+    c.on('open',()=>dealSecrets());
+  } // altrimenti: arriverà la connection + 'secret'
+}
+async function leaveLobby(){
+  clearInterval(beatTimer);beatTimer=null;
+  if(lobby){api(`/api/lobby/${lobby.id}/leave`,undefined,{peerId:gpeerId}).catch(()=>{});}
+  lobby=null;inMatch=false;MODE='friend';
+  show('scr-home');
+}
+async function browseLobbies(){
+  show('scr-browse');
+  $('browseList').innerHTML='<p class="status"><span class="spin">⏳</span></p>';
+  try{
+    const j=await api('/api/lobbies');
+    const el=$('browseList');el.innerHTML='';
+    if(!j.lobbies.length)el.innerHTML='<p class="status">Nessuna lobby aperta al momento.</p>';
+    j.lobbies.forEach(l=>{
+      const d=document.createElement('div');d.className='lobitem';
+      d.innerHTML=`<span class="nm">${l.name}</span><span class="tag">${l.count}/${l.max}</span>`;
+      const b=document.createElement('button');b.textContent='Entra';
+      b.onclick=async()=>{
+        try{
+          await ensureGPeer();
+          const join=await api(`/api/lobby/${l.id}/join`,undefined,{peerId:gpeerId,name:myNick()});
+          enterLobby(l.id,'',join);
+        }catch(e){toast('Errore: '+e.message);}
+      };
+      d.appendChild(b);el.appendChild(d);
+    });
+  }catch(e){$('browseList').innerHTML='<p class="status">⚠️ '+e.message+'</p>';}
+}
+async function joinByInvite(){
+  const inv=$('invInp').value.trim().toUpperCase();
+  const mm=inv.match(/^([A-Z0-9]{4,8})-([A-Z0-9]{4,8})$/);
+  if(!mm){toast('Formato invito: ID-CODICE');return;}
+  try{
+    await ensureGPeer();
+    const join=await api(`/api/lobby/${mm[1]}/join`,undefined,{peerId:gpeerId,name:myNick(),code:mm[2]});
+    enterLobby(mm[1],mm[2],join);
+  }catch(e){toast('Errore: '+e.message);}
+}
+
+/* ================= RANDOM (server) ================= */
+async function joinQueue(){
+  try{
+    await ensureGPeer();
+    await api('/api/queue',undefined,{peerId:gpeerId,name:myNick()});
+    MODE='random';botMode=false;inMatch=false;
+    show('scr-random');
+    $('randomStatus').innerHTML='<span class="spin">🔎</span> Cerco un avversario…';
+    clearInterval(queueTimer);
+    queueTimer=setInterval(pollQueue,2000);
+  }catch(e){toast('Server: '+e.message);}
+}
+async function pollQueue(){
+  try{
+    const j=await api('/api/queue/'+gpeerId);
+    if(j.match){
+      clearInterval(queueTimer);queueTimer=null;
+      startRandomMatch(j.match);
+    }else if(j.waiting){
+      $('randomStatus').innerHTML=`<span class="spin">🔎</span> In coda (${j.inQueue||1} in attesa)…`;
+    }
+  }catch(e){}
+}
+async function startRandomMatch(m){
+  inMatch=true;oppName=m.oppName||'avversario';
+  toast('⚔️ Trovato: '+oppName+'!');
+  if(m.call){
+    $('randomStatus').innerHTML='<span class="spin">⏳</span> Preparo la board…';
+    const key=randomCatKey();
+    board=await loadCatBoard(key);
+    const c=gpeer.connect(m.opp,{reliable:true});
+    setupConn(c);
+    c.on('open',()=>dealSecrets());
+  }else{
+    $('randomStatus').innerHTML='<span class="spin">⏳</span> L\'avversario prepara la board…';
+  }
+}
+function cancelQueue(){
+  clearInterval(queueTimer);queueTimer=null;
+  if(gpeerId)fetch(SERVER()+'/api/queue/'+gpeerId,{method:'DELETE'}).catch(()=>{});
+  MODE='friend';
+  show('scr-home');
+}
+
+/* ================= BOT ================= */
+function startBotSetup(){
+  MODE='bot';botMode=true;isHost=true;
+  $('roomCode').style.display='none';
+  $('setupSub').textContent='Scegli la board e inizia quando vuoi';
+  $('peerStatus').textContent='🤖 Modalità allenamento: giochi contro il Bot, senza connessione.';
+  show('scr-setup');
+  refreshStart();
+}
+function buildQuestions(){
+  const qs=[];
+  const has=(c,k)=>(c.t||[]).includes(k);
+  const tagQ=[['donna','È una donna?'],['ita','È italiano/a?'],['music','Fa musica?'],
+              ['sport','Fa sport?'],['film','Fa cinema?']];
+  for(const [k,txt] of tagQ){
+    const y=board.filter(c=>has(c,k)).length;
+    if(y>0 && y<board.length) qs.push({txt, test:c=>has(c,k)});
+  }
+  const letters=[...new Set(board.map(c=>c.n[0].toUpperCase()))].sort();
+  if(letters.length>2){
+    const done=new Set();
+    for(const p of [0.25,0.5,0.75]){
+      const th=letters[Math.max(1,Math.floor(letters.length*p))];
+      if(!th||done.has(th))continue;
+      done.add(th);
+      qs.push({txt:`Il nome inizia con una lettera prima della “${th}”?`,
+               test:c=>c.n[0].toUpperCase()<th});
+    }
+  }
+  return qs;
+}
+function renderQBar(){
+  const bar=$('qbar');
+  bar.innerHTML='';
+  if(!botMode){bar.classList.remove('on');return;}
+  bar.classList.add('on');
+  botQs.forEach((q,qi)=>{
+    const b=document.createElement('button');
+    b.textContent='❓ '+q.txt;
+    b.disabled=!myTurn||gameOver;
+    b.onclick=()=>askBot(qi);
+    bar.appendChild(b);
+  });
+}
+function setQBarEnabled(){
+  $('qbar').querySelectorAll('button').forEach(b=>b.disabled=!myTurn||gameOver);
+}
+const FLIP_TIME=60;
+let flipTimer=null, flipLeft=0, lastAnswer='';
+function askBot(qi){
+  if(!myTurn||gameOver)return;
+  const q=botQs[qi];
+  const ans=q.test(board[botSecret]);
+  lastAnswer=`Tu: “${q.txt}” → 🤖 ${ans?'SÌ':'NO'}`;
+  myTurn=false;
+  setQBarEnabled();
+  startFlipTimer();
+}
+function startFlipTimer(){
+  clearFlipTimer();
+  flipLeft=FLIP_TIME;
+  $('skipBtn').classList.add('on');
+  const step=()=>{
+    $('gameStatus').textContent=`${lastAnswer} — abbatti le caselle! Turno del Bot tra ⏱ ${flipLeft}s`;
+    if(flipLeft<=0){endFlipTimer();return;}
+    flipLeft--;
+  };
+  step();
+  flipTimer=setInterval(step,1000);
+}
+function clearFlipTimer(){
+  if(flipTimer){clearInterval(flipTimer);flipTimer=null;}
+  $('skipBtn').classList.remove('on');
+}
+function endFlipTimer(){
+  clearFlipTimer();
+  if(gameOver)return;
+  $('gameStatus').textContent='🤖 Il Bot sta pensando…';
+  setTimeout(botTurn,1200);
+}
+function botTurn(){
+  if(gameOver)return;
+  if(botCand.length<=1){
+    const g=botCand[0] ?? Math.floor(Math.random()*board.length);
+    const correct=g===mySecret;
+    endGame(!correct, board[mySecret], correct
+      ? `Il Bot ha indovinato: eri ${board[mySecret].n}.`
+      : `Il Bot ha sbagliato (${board[g].n}). Eri ${board[mySecret].n}: hai vinto tu!`);
+    return;
+  }
+  let best=null, bestScore=1e9;
+  for(const q of botQs){
+    const y=botCand.filter(i=>q.test(board[i])).length;
+    if(y===0||y===botCand.length)continue;
+    const s=Math.abs(botCand.length-2*y);
+    if(s<bestScore){bestScore=s;best=q;}
+  }
+  if(!best){
+    const g=botCand[Math.floor(Math.random()*botCand.length)];
+    const correct=g===mySecret;
+    endGame(!correct, board[mySecret], correct
+      ? `Il Bot ha indovinato: eri ${board[mySecret].n}.`
+      : `Il Bot ha sbagliato (${board[g].n}). Eri ${board[mySecret].n}: hai vinto tu!`);
+    return;
+  }
+  const ans=best.test(board[mySecret]);
+  botCand=botCand.filter(i=>best.test(board[i])===ans);
+  syncBotBoard();
+  $('gameStatus').textContent=`🤖 Bot: “${best.txt}” → ${ans?'SÌ':'NO'} (gli restano ${botCand.length} candidati). Tocca a te!`;
+  myTurn=true;
+  setQBarEnabled();
+}
+function syncBotBoard(){
+  oppTiles.forEach((t,i)=>t.down=!botCand.includes(i));
+}
+
+/* ============================================================
+   ======================  SCENA 3D  ==========================
+   ============================================================ */
+const TILE_W=1, TILE_H=1.3, GAP_X=.18, GAP_Z=.34, COLS=6;
+let scene, camera, renderer, boardGroup, tiles=[], oppTiles=[], raycaster, started3D=false;
+let camRig={yaw:0, pitch:0, dist:14, tYaw:0, tPitch:0, tDist:14};
+let hoverMesh=null, sparks=null, guys=[];
+
+function roundRectPath(x,ctx,px,py,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(px+r,py);
+  ctx.arcTo(px+w,py,px+w,py+h,r);
+  ctx.arcTo(px+w,py+h,px,py+h,r);
+  ctx.arcTo(px,py+h,px,py,r);
+  ctx.arcTo(px,py,px+w,py,r);
+  ctx.closePath();
+}
+function tileTexture(imgEl, name){
+  const cv=document.createElement('canvas');cv.width=256;cv.height=332;
+  const x=cv.getContext('2d');
+  const bg=x.createLinearGradient(0,0,0,332);
+  bg.addColorStop(0,'#fffdf4');bg.addColorStop(1,'#efe6cf');
+  x.fillStyle=bg;x.fillRect(0,0,256,332);
+  x.strokeStyle='rgba(120,90,30,.35)';x.lineWidth=6;
+  roundRectPath(0,x,4,4,248,324,14);x.stroke();
+  const pl=x.createLinearGradient(0,10,0,68);
+  pl.addColorStop(0,'#274069');pl.addColorStop(1,'#16233f');
+  x.fillStyle=pl;
+  roundRectPath(0,x,14,10,228,58,12);x.fill();
+  x.strokeStyle='rgba(255,255,255,.18)';x.lineWidth=2;
+  roundRectPath(0,x,14,10,228,58,12);x.stroke();
+  x.fillStyle='#fff';x.textAlign='center';x.textBaseline='middle';
+  let fs=34; x.font=`bold ${fs}px Arial, sans-serif`;
+  while(x.measureText(name).width>212&&fs>14){fs-=2;x.font=`bold ${fs}px Arial, sans-serif`;}
+  x.shadowColor='rgba(0,0,0,.5)';x.shadowBlur=4;x.shadowOffsetY=2;
+  x.fillText(name,128,40);
+  x.shadowColor='transparent';x.shadowBlur=0;x.shadowOffsetY=0;
+  x.save();
+  roundRectPath(0,x,14,76,228,228,12);x.clip();
+  if(imgEl)x.drawImage(imgEl,14,76,228,228);
+  else{x.fillStyle='#9aa';x.fillRect(14,76,228,228);}
+  x.restore();
+  x.strokeStyle='rgba(60,40,10,.35)';x.lineWidth=3;
+  roundRectPath(0,x,14,76,228,228,12);x.stroke();
+  const t=new THREE.CanvasTexture(cv);
+  t.anisotropy=8; t.encoding=THREE.sRGBEncoding;
+  t.minFilter=THREE.LinearFilter; t.generateMipmaps=false;
+  return t;
+}
+function backTexture(baseCol, patCol){
+  const cv=document.createElement('canvas');cv.width=cv.height=256;
+  const x=cv.getContext('2d');
+  const g=x.createLinearGradient(0,0,0,256);
+  g.addColorStop(0,baseCol[0]);g.addColorStop(1,baseCol[1]);
+  x.fillStyle=g;x.fillRect(0,0,256,256);
+  x.strokeStyle=patCol;x.lineWidth=2;
+  for(let i=-256;i<512;i+=28){
+    x.beginPath();x.moveTo(i,0);x.lineTo(i+256,256);x.stroke();
+    x.beginPath();x.moveTo(i+256,0);x.lineTo(i,256);x.stroke();
+  }
+  x.fillStyle='rgba(255,255,255,.85)';
+  x.font='bold 150px Arial, sans-serif';
+  x.textAlign='center';x.textBaseline='middle';
+  x.shadowColor='rgba(0,0,0,.4)';x.shadowBlur=10;x.shadowOffsetY=4;
+  x.fillText('?',128,136);
+  x.shadowColor='transparent';
+  x.strokeStyle='rgba(255,255,255,.35)';x.lineWidth=8;
+  roundRectPath(0,x,6,6,244,244,18);x.stroke();
+  const t=new THREE.CanvasTexture(cv);
+  t.anisotropy=8; t.encoding=THREE.sRGBEncoding;
+  return t;
+}
+function pcol(hex){
+  return new THREE.Color(hex).convertSRGBToLinear();
+}
+function woodTexture(){
+  const cv=document.createElement('canvas');cv.width=cv.height=512;
+  const x=cv.getContext('2d');
+  x.fillStyle='#3a2417';x.fillRect(0,0,512,512);
+  for(let i=0;i<160;i++){
+    const y=Math.random()*512;
+    x.strokeStyle=`rgba(${60+Math.random()*50},${34+Math.random()*26},${16+Math.random()*14},${.25+Math.random()*.3})`;
+    x.lineWidth=1+Math.random()*3;
+    x.beginPath();
+    x.moveTo(0,y);
+    x.bezierCurveTo(150,y+(Math.random()*24-12),340,y+(Math.random()*24-12),512,y+(Math.random()*16-8));
+    x.stroke();
+  }
+  const t=new THREE.CanvasTexture(cv);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(4,4);
+  t.anisotropy=8; t.encoding=THREE.sRGBEncoding;
+  return t;
+}
+function skyTexture(){
+  const cv=document.createElement('canvas');cv.width=32;cv.height=256;
+  const x=cv.getContext('2d');
+  const g=x.createLinearGradient(0,0,0,256);
+  g.addColorStop(0,'#1b2d5e');
+  g.addColorStop(.5,'#0d1530');
+  g.addColorStop(1,'#05070f');
+  x.fillStyle=g;x.fillRect(0,0,32,256);
+  const t=new THREE.CanvasTexture(cv);
+  t.encoding=THREE.sRGBEncoding;
+  return t;
+}
+function initThree(){
+  if(started3D)return;
+  started3D=true;
+  const cv=$('c3d');
+  renderer=new THREE.WebGLRenderer({canvas:cv, antialias:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.shadowMap.enabled=true;
+  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  renderer.outputEncoding=THREE.sRGBEncoding;
+  renderer.toneMapping=THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure=1.05;
+
+  scene=new THREE.Scene();
+  scene.fog=new THREE.Fog(0x070a16, 22, 55);
+
+  camera=new THREE.PerspectiveCamera(40, 1, .1, 120);
+
+  const dome=new THREE.Mesh(
+    new THREE.SphereGeometry(60,32,20),
+    new THREE.MeshBasicMaterial({map:skyTexture(), side:THREE.BackSide, fog:false})
+  );
+  scene.add(dome);
+  const starGeo=new THREE.BufferGeometry();
+  const starPos=[];
+  for(let i=0;i<260;i++){
+    const r=40+Math.random()*15, th=Math.random()*Math.PI*2, ph=Math.random()*Math.PI*.5;
+    starPos.push(r*Math.cos(th)*Math.sin(ph), r*Math.cos(ph)+2, r*Math.sin(th)*Math.sin(ph));
+  }
+  starGeo.setAttribute('position',new THREE.Float32BufferAttribute(starPos,3));
+  sparks=new THREE.Points(starGeo,new THREE.PointsMaterial({color:0x9db8ff,size:.16,transparent:true,opacity:.8,fog:false}));
+  scene.add(sparks);
+
+  scene.add(new THREE.HemisphereLight(0xbdd4ff,0x30231a,.55));
+  const key=new THREE.DirectionalLight(0xffe9c9,1.15);
+  key.position.set(6,12,7); key.castShadow=true;
+  key.shadow.mapSize.set(2048,2048);
+  key.shadow.camera.left=-10;key.shadow.camera.right=10;
+  key.shadow.camera.top=10;key.shadow.camera.bottom=-10;
+  key.shadow.bias=-0.0004;
+  scene.add(key);
+  const rim=new THREE.DirectionalLight(0x4cc3ff,.5);
+  rim.position.set(-8,5,-6); scene.add(rim);
+  const warm=new THREE.PointLight(0xff9d2e,.5,25);
+  warm.position.set(0,6,0); scene.add(warm);
+
+  const table=new THREE.Mesh(
+    new THREE.CylinderGeometry(18,18,.5,64),
+    new THREE.MeshStandardMaterial({map:woodTexture(), roughness:.75, metalness:.05})
+  );
+  table.position.y=-.5; table.receiveShadow=true;
+  scene.add(table);
+
+  boardGroup=new THREE.Group();
+  scene.add(boardGroup);
+
+  raycaster=new THREE.Raycaster();
+  bindPointer(cv);
+  window.addEventListener('resize',resize3D);
+  renderer.setAnimationLoop(tick);
+}
+function roundedBase(W,D,H,color){
+  const r=.35;
+  const s=new THREE.Shape();
+  s.moveTo(-W/2+r,-D/2);
+  s.lineTo(W/2-r,-D/2); s.absarc(W/2-r,-D/2+r,r,-Math.PI/2,0);
+  s.lineTo(W/2,D/2-r);  s.absarc(W/2-r,D/2-r,r,0,Math.PI/2);
+  s.lineTo(-W/2+r,D/2); s.absarc(-W/2+r,D/2-r,r,Math.PI/2,Math.PI);
+  s.lineTo(-W/2,-D/2+r);s.absarc(-W/2+r,-D/2+r,r,Math.PI,Math.PI*1.5);
+  const geo=new THREE.ExtrudeGeometry(s,{depth:H, bevelEnabled:true, bevelThickness:.06, bevelSize:.06, bevelSegments:3});
+  const mesh=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:pcol(color), roughness:.32, metalness:.12}));
+  mesh.rotation.x=-Math.PI/2;
+  mesh.position.y=H;
+  mesh.castShadow=mesh.receiveShadow=true;
+  return mesh;
+}
+function makeBoard(imgs,cols,rows,theme){
+  const n=board.length;
+  const RS=TILE_H+.45;
+  const W=cols*(TILE_W+GAP_X)+GAP_X+.5;
+  const D=rows*RS+.9;
+  const g=new THREE.Group();
+
+  g.add(roundedBase(W,D,.32,theme.base));
+  const lip=new THREE.Mesh(
+    new THREE.BoxGeometry(W*.98,.55,.22),
+    new THREE.MeshStandardMaterial({color:pcol(theme.base), roughness:.3, metalness:.15})
+  );
+  lip.position.set(0,.45,D/2+.05); lip.castShadow=true;
+  g.add(lip);
+
+  const backTex=backTexture(theme.backGrad, theme.backPat);
+  const sideMat=new THREE.MeshStandardMaterial({color:pcol(theme.side), roughness:.4});
+  const backMat=new THREE.MeshStandardMaterial({map:backTex, roughness:.5});
+  const arr=[];
+  for(let i=0;i<n;i++){
+    const col=i%cols, row=Math.floor(i/cols);
+    const x=(col-(cols-1)/2)*(TILE_W+GAP_X);
+    const z=(row-(rows-1)/2)*RS;
+    const tex=tileTexture(imgs[i], board[i].n);
+    const faceMat=new THREE.MeshStandardMaterial({map:tex, roughness:.55});
+    const geo=new THREE.BoxGeometry(TILE_W,TILE_H,.07);
+    const mesh=new THREE.Mesh(geo,[sideMat,sideMat,sideMat,sideMat,faceMat,backMat]);
+    mesh.position.y=TILE_H/2+.04;
+    mesh.castShadow=true;
+    mesh.userData.idx=i;
+    const pivot=new THREE.Group();
+    pivot.position.set(x,.72,z);
+    pivot.add(mesh);
+    pivot.rotation.x=-Math.PI/2-1;
+    g.add(pivot);
+    arr.push({pivot, mesh, down:false, delay:i*40});
+  }
+  return {group:g, tiles:arr, W, D};
+}
+function makeGuy(mainHex){
+  const g=new THREE.Group();
+  const mat=new THREE.MeshStandardMaterial({color:pcol(mainHex), roughness:.5});
+  const skin=new THREE.MeshStandardMaterial({color:pcol(0xffd7a8), roughness:.65});
+  const dark=new THREE.MeshStandardMaterial({color:pcol(0x232a38), roughness:.45});
+  for(const s of [-1,1]){
+    const leg=new THREE.Mesh(new THREE.CylinderGeometry(.09,.11,.45,10),dark);
+    leg.position.set(.14*s,.22,0); leg.castShadow=true; g.add(leg);
+  }
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(.23,.32,.78,14),mat);
+  body.position.y=.82; body.castShadow=true; g.add(body);
+  const shoulders=new THREE.Mesh(new THREE.SphereGeometry(.23,14,10),mat);
+  shoulders.position.y=1.2; shoulders.castShadow=true; g.add(shoulders);
+  const headG=new THREE.Group(); headG.position.y=1.52;
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.27,18,14),skin);
+  head.castShadow=true; headG.add(head);
+  for(const s of [-1,1]){
+    const eye=new THREE.Mesh(new THREE.SphereGeometry(.035,8,6),dark);
+    eye.position.set(.1*s,.05,.24); headG.add(eye);
+  }
+  const cap=new THREE.Mesh(new THREE.SphereGeometry(.28,14,10,0,Math.PI*2,0,Math.PI/2.4),mat);
+  cap.position.y=.08; headG.add(cap);
+  g.add(headG);
+  const mkArm=side=>{
+    const p=new THREE.Group(); p.position.set(.3*side,1.28,0);
+    const a=new THREE.Mesh(new THREE.CylinderGeometry(.07,.08,.55,10),mat);
+    a.position.y=-.26; a.castShadow=true; p.add(a);
+    const hand=new THREE.Mesh(new THREE.SphereGeometry(.09,10,8),skin);
+    hand.position.y=-.55; p.add(hand);
+    g.add(p); return p;
+  };
+  return {group:g, head:headG, rArm:mkArm(1), lArm:mkArm(-1), t0:Math.random()*7};
+}
+async function buildBoard3D(){
+  tiles=[]; oppTiles=[]; hoverMesh=null;
+  while(boardGroup.children.length)boardGroup.remove(boardGroup.children[0]);
+
+  const n=board.length;
+  const cols=Math.min(COLS,n);
+  const rows=Math.ceil(n/cols);
+  const imgs=await Promise.all(board.map(c=>loadImg(c.img)));
+
+  const mine=makeBoard(imgs,cols,rows,{
+    base:0xd7402b, side:0xa93226,
+    backGrad:['#e8664a','#b93a20'], backPat:'rgba(255,255,255,.14)'
+  });
+  const opp=makeBoard(imgs,cols,rows,{
+    base:0x2e86de, side:0x1a5276,
+    backGrad:['#5dade2','#21618c'], backPat:'rgba(255,255,255,.16)'
+  });
+
+  const off=mine.D/2+1.6;
+  mine.group.position.z=off;
+  opp.group.position.z=-off;
+  opp.group.rotation.y=Math.PI;
+  boardGroup.add(mine.group, opp.group);
+  tiles=mine.tiles; oppTiles=opp.tiles;
+
+  guys=[];
+  const guyA=makeGuy(0xd7402b);
+  guyA.group.position.set(mine.W/2+1.4, .1, off+.4);
+  guyA.group.rotation.y=-.7;
+  const guyB=makeGuy(0x2e86de);
+  guyB.group.position.set(-(mine.W/2+1.4), .1, -off-.4);
+  guyB.group.rotation.y=Math.PI*.78;
+  guyA.baseY=guyA.group.position.y; guyB.baseY=guyB.group.position.y;
+  boardGroup.add(guyA.group, guyB.group);
+  guys.push(guyA, guyB);
+
+  camRig.tDist=Math.max(mine.W, 2*off+mine.D)*.85+5;
+  camRig.dist=camRig.tDist+9;
+  camRig.pitch=1.25; camRig.tPitch=.78;
+  camRig.yaw=-.5;  camRig.tYaw=0;
+  resize3D();
+}
+function tick(){
+  const now=performance.now();
+  for(const arr of [tiles,oppTiles]){
+    for(const t of arr){
+      if(t.delay>0){t.delay-=16; continue;}
+      const goalX=t.down?1.55:-.12;
+      t.vel=(t.vel||0)+(goalX-t.pivot.rotation.x)*.028;
+      t.vel*=.80;
+      t.pivot.rotation.x+=t.vel;
+      t.mesh.rotation.y=0;
+    }
+  }
+  for(const t of tiles){
+    const target=(t.mesh===hoverMesh&&!t.down)?1.07:1;
+    t.mesh.scale.x+=(target-t.mesh.scale.x)*.2;
+    t.mesh.scale.y+=(target-t.mesh.scale.y)*.2;
+  }
+  for(const gy of guys){
+    const t=now/1000+gy.t0;
+    const wave=Math.floor(t/5)%2===1;
+    const rT= wave ? 2.45+Math.sin(t*9)*.35 : .14+Math.sin(t*2)*.08;
+    const lT= wave ? -.1+Math.sin(t*2.3)*.06 : -.14-Math.sin(t*2+1)*.08;
+    const hT= wave ? Math.sin(t*9)*.09 : Math.sin(t*1.7)*.07;
+    gy.rArm.rotation.z+=(rT-gy.rArm.rotation.z)*.12;
+    gy.lArm.rotation.z+=(lT-gy.lArm.rotation.z)*.12;
+    gy.head.rotation.z+=(hT-gy.head.rotation.z)*.1;
+    const yT=gy.baseY+(wave?Math.abs(Math.sin(t*4.5))*.07:Math.sin(t*2)*.02);
+    gy.group.position.y+=(yT-gy.group.position.y)*.2;
+  }
+  camRig.yaw+=(camRig.tYaw-camRig.yaw)*.06;
+  camRig.pitch+=(camRig.tPitch-camRig.pitch)*.06;
+  camRig.dist+=(camRig.tDist-camRig.dist)*.05;
+  const r=camRig.dist;
+  camera.position.set(
+    Math.sin(camRig.yaw)*Math.cos(camRig.pitch)*r,
+    Math.sin(camRig.pitch)*r,
+    Math.cos(camRig.yaw)*Math.cos(camRig.pitch)*r
+  );
+  camera.lookAt(0,.6,0);
+  if(sparks)sparks.rotation.y=now*.00001;
+  boardGroup.position.y=Math.sin(now*.0008)*.02;
+  renderer.render(scene,camera);
+}
+function resize3D(){
+  if(!renderer)return;
+  const w=innerWidth, h=innerHeight;
+  renderer.setSize(w,h,false);
+  camera.aspect=w/h;
+  camera.updateProjectionMatrix();
+}
+function castTile(px,py){
+  const m=new THREE.Vector2((px/innerWidth)*2-1, -(py/innerHeight)*2+1);
+  raycaster.setFromCamera(m,camera);
+  const hits=raycaster.intersectObjects(tiles.map(t=>t.mesh));
+  return hits.length?hits[0].object:null;
+}
+function bindPointer(cv){
+  let sx=0, sy=0, dragging=false, moved=false, startYaw=0, startPitch=0;
+  cv.addEventListener('pointerdown',e=>{
+    dragging=true; moved=false; sx=e.clientX; sy=e.clientY;
+    startYaw=camRig.tYaw; startPitch=camRig.tPitch;
+    cv.setPointerCapture(e.pointerId);
+  });
+  cv.addEventListener('pointermove',e=>{
+    if(!dragging){
+      const m=castTile(e.clientX,e.clientY);
+      hoverMesh=m;
+      cv.style.cursor=m?'pointer':'grab';
+      return;
+    }
+    const dx=e.clientX-sx, dy=e.clientY-sy;
+    if(Math.abs(dx)+Math.abs(dy)>8)moved=true;
+    if(moved){
+      camRig.tYaw=THREE.MathUtils.clamp(startYaw-dx*.004,-.9,.9);
+      camRig.tPitch=THREE.MathUtils.clamp(startPitch+dy*.003,.25,1.25);
+    }
+  });
+  cv.addEventListener('pointerup',e=>{
+    dragging=false;
+    if(!moved)pick(e.clientX,e.clientY);
+  });
+}
+function pick(px,py){
+  if(gameOver)return;
+  const hit=castTile(px,py);
+  if(!hit)return;
+  const i=hit.userData.idx;
+  const t=tiles[i];
+  if(guessMode){
+    if(t.down)return;
+    const who=botMode?'del Bot':`di ${oppName||'avversario'}`;
+    if(confirm(`Vuoi dire che il personaggio ${who} è ${board[i].n}?`)){
+      toggleGuess(false);
+      if(botMode){
+        const correct=i===botSecret;
+        endGame(correct, board[botSecret], correct
+          ? `Esatto! Il Bot era proprio ${board[botSecret].n}.`
+          : `No, non era ${board[i].n}: il Bot era ${board[botSecret].n}. Hai perso.`);
+      }else{
+        send({type:'guess', idx:i});
+        $('gameStatus').textContent='In attesa della risposta…';
+      }
+    }
+  }else{
+    t.down=!t.down;
+    if(!botMode)send({type:'flip', idx:i, down:t.down});
+  }
+}
+
+/* ================= GIOCO ================= */
+async function startGame(){
+  gameOver=false;guessMode=false;
+  clearFlipTimer();
+  $('banner').classList.remove('show');
+  $('guessBtn').classList.remove('on');
+  $('myImg').src=board[mySecret].img;
+  $('myName').textContent=board[mySecret].n;
+  if(botMode){
+    botQs=buildQuestions();
+    renderQBar();
+    $('gameStatus').textContent='🤖 Fai una domanda al Bot con i pulsanti qui sopra, poi abbatti le tessere. Tocca a te!';
+  }else{
+    $('qbar').classList.remove('on');
+    $('gameStatus').textContent=(oppName&&MODE!=='friend'?`⚔️ Contro ${oppName} · `:'')+'Fatevi le domande a voce/chat · tocca una tessera per abbatterla';
+  }
+  show('scr-game');
+  initThree();
+  await buildBoard3D();
+}
+function toggleGuess(on){
+  guessMode=on===undefined?!guessMode:on;
+  $('guessBtn').classList.toggle('on',guessMode);
+  $('gameStatus').textContent=guessMode
+    ?'🎯 MODALITÀ INDOVINA: tocca il personaggio che pensi sia quello dell\'avversario!'
+    :'Tocca una tessera per abbatterla · trascina per ruotare la visuale';
+}
+function endGame(win,ch,txt){
+  gameOver=true;
+  clearFlipTimer();
+  $('banTitle').textContent=win?'🏆 HAI VINTO!':'😞 Hai perso';
+  $('banTitle').style.color=win?'var(--ok)':'var(--bad)';
+  $('banText').textContent=txt;
+  $('banImg').src=ch?ch.img:'';
+  const nb=$('nextBtn');
+  if(MODE==='lobby'){nb.textContent='🏟️ Torna alla lobby';}
+  else if(MODE==='random'){nb.textContent='⚡ Nuova sfida random';}
+  else{nb.textContent='🔁 Rivincita';}
+  $('banner').classList.add('show');
+}
+
+/* ================= EVENTI UI ================= */
+$('myNameInp').value=store.read('gwho-name');
+$('myNameInp').addEventListener('change',()=>store.write('gwho-name',myNick()));
+if(AUTO_SERVER){ // servito dal nostro server: nessuna configurazione richiesta
+  $('serverCard').style.display='none';
+}
+$('serverInp').value=store.read('gwho-server');
+$('btnServerSave').onclick=async()=>{
+  store.write('gwho-server',$('serverInp').value.trim());
+  $('serverStatus').textContent='Verifico…';
+  try{const j=await api('/api/ping');$('serverStatus').textContent='✅ Server ok';}
+  catch(e){$('serverStatus').textContent='⚠️ Non raggiungibile: '+e.message;}
+};
+$('btnRandom').onclick=()=>{
+  if(!SERVER()){toast('Imposta prima il server (in basso)');return;}
+  store.write('gwho-name',myNick());
+  joinQueue();
+};
+$('btnRandomCancel').onclick=cancelQueue;
+$('btnLobbyCreate').onclick=()=>{
+  if(!SERVER()){toast('Imposta prima il server (in basso)');return;}
+  customImgs=[];$('lobbyPreview').innerHTML='';$('lobbyCreateStatus').textContent='';
+  $('btnLobbyGo').disabled=true;
+  show('scr-lobbycreate');
+};
+$('btnLobbyPics').onclick=()=>$('filePickL').click();
+$('filePickL').onchange=async e=>{
+  await pickCustom([...e.target.files],customImgs,$('lobbyPreview'),$('lobbyCreateStatus'));
+  $('btnLobbyGo').disabled=customImgs.length<8;
+};
+$('btnLobbyGo').onclick=createLobby;
+$('btnLobbyBack').onclick=()=>show('scr-home');
+$('btnBrowse').onclick=()=>{
+  if(!SERVER()){toast('Imposta prima il server (in basso)');return;}
+  browseLobbies();
+};
+$('btnBrowseRefresh').onclick=browseLobbies;
+$('btnBrowseBack').onclick=()=>show('scr-home');
+$('btnInvJoin').onclick=()=>{
+  if(!SERVER()){toast('Imposta prima il server (in basso)');return;}
+  joinByInvite();
+};
+$('btnLobbyLeave').onclick=leaveLobby;
+$('btnCreate').onclick=createGame;
+$('btnJoin').onclick=joinGame;
+$('joinCode').addEventListener('keydown',e=>{if(e.key==='Enter')joinGame();});
+$('btnStd').onclick=pickFromCategories;
+$('btnCustom').onclick=()=>$('filePick').click();
+$('filePick').onchange=async e=>{
+  customImgs=[];
+  await pickCustom([...e.target.files],customImgs,$('customPreview'),$('setupStatus'));
+  board=customImgs.slice();
+  refreshStart();
+};
+$('btnStart').onclick=()=>{if(board.length<8){toast('Servono almeno 8 personaggi');return;}dealSecrets();};
+$('btnSetupBack').onclick=()=>location.reload();
+$('guessBtn').onclick=()=>toggleGuess();
+$('resetTiles').onclick=()=>{tiles.forEach(t=>t.down=false);if(!botMode)send({type:'flipAll'});};
+$('leaveBtn').onclick=()=>{
+  if(MODE==='lobby'&&inMatch){if(confirm('Abbandoni la sfida? (conta come sconfitta)'))abortMatch();}
+  else location.reload();
+};
+$('homeBtn').onclick=()=>location.reload();
+$('btnBot').onclick=startBotSetup;
+$('skipBtn').onclick=endFlipTimer;
+$('nextBtn').onclick=()=>{
+  $('banner').classList.remove('show');
+  if(MODE==='lobby'){show('scr-lobby');}
+  else if(MODE==='random'){joinQueue();}
+  else if(botMode){dealSecrets();}
+  else{
+    send({type:'rematch-req'});
+    if(isHost)dealSecrets();
+    else toast('Richiesta inviata, attendi l\'host…');
+  }
+};
+initCatModal();
+if(!window.WebGLRenderingContext)alert('Il tuo browser non supporta WebGL (grafica 3D).');
+</script>
+</body>
+</html>

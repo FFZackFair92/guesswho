@@ -1,0 +1,10 @@
+{
+  "name": "guesswho-server",
+  "version": "1.0.0",
+  "description": "Indovina Chi 3D - lobby, matchmaking e client",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": { "node": ">=18" }
+}
